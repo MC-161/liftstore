@@ -1,0 +1,2 @@
+add_executable(engine_bench bench_main.cpp)
+target_link_libraries(engine_bench PRIVATE engine_core engine_warnings benchmark::benchmark_main)
