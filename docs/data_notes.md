@@ -179,3 +179,7 @@ Top numeric places: 1 = 1,665,599 · 2 = 626,433 · 3 = 379,805.
 - Whether to load all 42 columns or only core + filter columns.
 - Ranking rule candidate: include a row only if Place is a number
   (this excludes DQ, NS, DD **and** G in one check).
+
+
+
++ alone: 371 rows. No number, just the plus sign. Interpreted as an open class (0 kg and over). Stored as WeightClass{0, plus = true}, kept distinct from blank. Not caught by the M0 regex check, because [0-9.]* matches zero digits. Found by the parser's fail-loudly rule.
