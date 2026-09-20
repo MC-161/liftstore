@@ -4,17 +4,19 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <stdexcept>
 
 namespace engine {
 
 namespace {
 
 [[noreturn]] void fail(const char* what, std::string_view s) {
-    std::fprintf(stderr, "%s: '%.*s'\n", what,
-                 static_cast<int>(s.size()), s.data());
-    std::exit(1);
+    std::string msg = what;
+    msg += ": '";
+    msg += s;
+    msg += "'";
+    throw std::runtime_error(msg);
 }
-
 // Text -> float. Strict: the WHOLE field must be a number.
 // Plain std::stof("12abc") would silently return 12.
 float to_float(std::string_view s, const char* what) {
@@ -117,7 +119,7 @@ Place parse_place(std::string_view s) {
 std::optional<WeightClass> parse_weight_class(std::string_view s) {
     if (s.empty()) { return std::nullopt; }
 
-    std::string_view original = s;      // keep for error messages
+    std::string_view original = s;
     bool plus = false;
     if (s.back() == '+') {
         plus = true;
