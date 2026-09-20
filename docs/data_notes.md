@@ -183,3 +183,10 @@ Top numeric places: 1 = 1,665,599 · 2 = 626,433 · 3 = 379,805.
 
 
 + alone: 371 rows. No number, just the plus sign. Interpreted as an open class (0 kg and over). Stored as WeightClass{0, plus = true}, kept distinct from blank. Not caught by the M0 regex check, because [0-9.]* matches zero digits. Found by the parser's fail-loudly rule.
+
+
+
+
+Name disambiguation: 158,618 rows have #N suffixes on names shared by different people. Deduplicating by name = deduplicating by person.
+Multiple rows per performance: a lifter entering several divisions at one meet appears once per division (e.g. Tamara Walcott, 2025-05-03, twice). Counts and averages must account for this.
+Pound-converted values: totals like 730.28 (= 1,610 lb) come from pound-based meets.
