@@ -84,54 +84,6 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-
-        // Splitting  only
-        t.reset();
-        {
-            std::array<std::string_view, 42> f;
-            const char* q = data_start;
-            std::size_t sink = 0;
-            while (q < end) {
-                std::size_t count = 0;
-                q = engine::split_line(q, end, f, count);
-                sink += f[0].size();
-            }
-            engine::keep(sink);
-        }
-        double split_ms = t.ms();
-
-        // splitting + make_lift, not stored
-        t.reset();
-        {
-            std::array<std::string_view, 42> f;
-            const char* q = data_start;
-            unsigned long sink = 0;
-            while (q < end) {
-                std::size_t count = 0;
-                q = engine::split_line(q, end, f, count);
-                engine::Lift lift = engine::make_lift(f);
-                sink += lift.place.position + lift.name.size();
-            }
-            engine::keep(sink);
-        }
-        double build_ms = t.ms();
-
-        // C2: split + numbers/enums only (no strings)
-        t.reset();
-        {
-            std::array<std::string_view, 42> f;
-            const char* q = data_start;
-            unsigned long sink = 0;
-            while (q < end) {
-                std::size_t count = 0;
-                q = engine::split_line(q, end, f, count);
-                engine::Lift lift = engine::make_lift_numbers_only(f);
-                sink += lift.place.position;
-            }
-            engine::keep(sink);
-        }
-        double numbers_ms = t.ms();
-
         t.reset();
         // real load
         // Split that data line into fields.
@@ -160,9 +112,6 @@ int main(int argc, char** argv) {
         std::printf("parsed %ld rows\n", parsed);
         std::printf("stored %zu lifts\n", lifts.size());
         std::printf("A io           %8.1f ms\n", io_ms);
-        std::printf("B split        %8.1f ms\n", split_ms);
-        std::printf("C split+build  %8.1f ms\n", build_ms);
-        std::printf("C2 split+build  %8.1f ms\n", numbers_ms);
         std::printf("D full load    %8.1f ms\n", load_ms);
 
 
