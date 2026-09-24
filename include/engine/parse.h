@@ -23,5 +23,6 @@ namespace engine {
     bool parse_sanctioned(std::string_view s);
 
     Lift make_lift(const std::array<std::string_view, 42>& f);
+    Lift make_lift_numbers_only(const std::array<std::string_view, 42>& f);
 
 }  // namespace engine

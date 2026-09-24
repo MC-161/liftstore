@@ -1,7 +1,12 @@
-# OpenPowerlifting data notes (M0)
+# OpenPowerlifting data notes
 
-Findings from inspecting the raw CSV before writing any C++.
+Findings from inspecting the data before and during implementation.
 These notes are the spec for the loader and struct design.
+
+Confidence levels used below:
+**Proven** = measured on the full file ·
+**Interpretation** = consistent with the data, but the meaning comes from elsewhere ·
+**Unchecked** = not yet looked at.
 
 ## Dataset version
 
@@ -17,16 +22,21 @@ These notes are the spec for the loader and struct design.
 | Dev slice | `dev.csv` = first 200,000 lines → 199,999 data rows + header | `head -200000` |
 
 All benchmark numbers must be quoted against this version. When the dataset
-is updated, re-run M0 and record the new version here.
+is updated, re-run these checks and record the new version here.
 
-## CSV format
+## CSV format (all proven)
 
 - Delimiter: comma. First line is a header.
 - **Every line has exactly 42 fields** (`awk -F, '{print NF}' | sort | uniq -c` → only `42`).
 - **No quote characters in the file** (`grep -c '"'` → `0`).
 - Therefore: no quoted commas and no line breaks inside fields.
-  **The parser can split on `,` directly, with no quote handling.**
+  **The parser splits on `,` directly, with no quote handling.**
+- **Line endings are `\n` only** (`grep -c $'\r'` → `0`), so the last field
+  carries no stray `\r`.
 - Empty value = zero-length field (`,,`). No `NULL` / `NA` text.
+- **Every one of the 4,032,180 rows parses** with the strict parsers in
+  `src/parse.cpp` (which reject any unknown value), so the types below
+  cover every value in the file.
 
 ## Columns
 
@@ -48,7 +58,7 @@ Ranking column legend:
 | 7 | BirthYearClass | category / string | No | 1,378,482 | 34.2% |
 | 8 | Division | string | No | 3,778 | 0.1% |
 | 9 | BodyweightKg | float | Filter | 44,440 | 1.1% |
-| 10 | WeightClassKg | TODO: numeric? | Filter | 59,601 | 1.5% |
+| 10 | WeightClassKg | **not numeric**: number, or number + `+` | Filter | 59,601 | 1.5% |
 | 11 | Squat1Kg | float, signed | No | 2,714,783 | 67.3% |
 | 12 | Squat2Kg | float, signed | No | 2,728,582 | 67.7% |
 | 13 | Squat3Kg | float, signed | No | 2,759,991 | 68.4% |
@@ -87,6 +97,11 @@ is 100% filled. Attempt columns are mostly empty because many federations
 record only the best lift; 4th attempts are record attempts and are almost
 never present.
 
+Bench columns are fuller than squat and deadlift because more event types
+include a bench: events with a bench (SBD+B+BD+SB) = 3,791,144 rows, with a
+squat (SBD+S+SB+SD) = 2,938,891. So 1,093,289 rows never attempted a squat
+but only 241,036 never attempted a bench.
+
 ## Category values
 
 Counts for each column sum to exactly 4,032,180, so these lists are complete.
@@ -113,8 +128,8 @@ Counts for each column sum to exactly 4,032,180, so these lists are complete.
 | SB | 4,185 | Squat + bench |
 | SD | 2,411 | Squat + deadlift |
 
-The 7 values are every non-empty combination of S, B, D, so Event could
-be stored as 3 bits (S=1, B=2, D=4).
+The 7 values are every non-empty combination of S, B, D (2^3 - 1), so Event
+could be stored as 3 bits (S=1, B=2, D=4).
 
 **Equipment** (6 values)
 
@@ -128,11 +143,13 @@ be stored as 3 bits (S=1, B=2, D=4).
 | Straps | 119 |
 
 **Tested** (2 values): `Yes` = 3,073,574 · blank = 958,606.
-Blank is a real value ("not tested"), not missing data.
+Blank is a real value ("not tested"), not missing data. *(Interpretation:
+confirm in the dataset README.)*
 
 **Sanctioned** (2 values): `Yes` = 4,020,955 · `No` = 11,225. Never blank.
 
-**Place**: a finishing position (1, 2, 3, ...) or one of these codes:
+**Place**: a finishing position (1, 2, 3, ...) or one of these codes.
+*(Code meanings are interpretations: confirm in the README.)*
 
 | Code | Rows | Meaning | Has a total? |
 |---|---|---|---|
@@ -143,19 +160,26 @@ Blank is a real value ("not tested"), not missing data.
 
 Top numeric places: 1 = 1,665,599 · 2 = 626,433 · 3 = 379,805.
 
-**WeightClassKg**: most common values are numbers (`90`, `75`, `100`,
-`82.5`, ...), but only the top 10 were checked. See open questions.
+**WeightClassKg**: three forms — a number (`90`, `82.5`), a number with `+`
+meaning "and over" (`120+`, `124.7+`), or empty. Values like `124.7+` and
+`139.7+` are pound classes converted to kg (275 lb, 308 lb).
+**371 rows are a bare `+`** with no number: interpreted as an open class
+(0 kg and over), stored as `WeightClass{0, plus = true}` and kept distinct
+from blank. The M0 shell check missed this, because `[0-9.]*` also matches
+zero digits; the parser's fail-loudly rule caught it.
 
-## Verified relationships
+## Verified relationships (proven)
 
-- **Empty TotalKg ⇒ Place is DQ, NS or DD.**
-  DQ 246,210 + NS 22,249 + DD 1,859 = 270,318 = empty TotalKg count.
+- **Empty TotalKg <=> Place is DQ, NS or DD**, proven in both directions.
+  DQ 246,210 + NS 22,249 + DD 1,859 = 270,318 = empty TotalKg count, and no
+  DQ/NS/DD row has a total (`awk ... $27 ~ /^(DQ|NS|DD)$/ && $26!=""` → 0).
   Every row with a numeric place has a total.
 - **Guests (`G`) have totals but must not be ranked.**
-  Skipping rows with no total is not enough; `G` must be excluded explicitly.
-- **No bodyweight ⇒ no Dots/Wilks/Glossbrenner.**
+  Skipping rows with no total is not enough; `G` must be excluded too.
+- **No bodyweight => no Dots/Wilks/Glossbrenner.**
   26,224 rows have a total but no Dots; all 26,224 have no bodyweight.
   270,318 (no total) + 26,224 (total, no bodyweight) = 296,542 = empty Dots count.
+  The three score columns share one empty count because they share inputs.
 - **A Dots ranking includes 26,224 fewer lifters than a TotalKg ranking.**
 
 ## Observations
@@ -167,26 +191,29 @@ Top numeric places: 1 = 1,665,599 · 2 = 626,433 · 3 = 379,805.
 - **`Place` mixes numbers and codes**, so it is not a plain integer column.
 - **`Age` is fractional**, so it needs a float type.
 - Score columns (`Dots`, etc.) are written with 2 decimal places.
+- **Name disambiguation:** 158,618 rows (3.9%) have a `#N` suffix on names
+  shared by different people (e.g. `Alexis Jones #1`). So deduplicating by
+  name = deduplicating by person.
+- **One performance can be several rows.** A lifter entering more than one
+  division at a meet appears once per division (e.g. Tamara Walcott,
+  2025-05-03, 759 kg, twice). Rankings are unaffected because they dedupe by
+  name, but counts and averages must account for it.
+- **Some values were converted from pounds**, e.g. a total of 730.28 kg
+  (= 1,610 lb), which explains odd decimals. *(Interpretation.)*
+- **The dev slice is not representative.** The top-10 query on `dev.csv`
+  gives a different answer from the full file. Test on the slice; answer on
+  the full file.
 
+## Design decisions taken (M1)
 
-## Design decisions for M1
+- Numbers use `std::optional<float>`: empty is never 0.
+- Categories (Sex, Event, Equipment) are `enum class : uint8_t` (1 byte).
+- Tested and Sanctioned are `bool`.
+- `Place` = `{PlaceCode code, uint16_t position}`.
+- `WeightClassKg` = `std::optional<WeightClass{float kg, bool plus}>`.
+- All 42 columns are loaded (the naive baseline stores whole rows).
+- **Ranking rule: include a row only if Place is a number.** This excludes
+  DQ, NS, DD **and** G in one check, and guarantees a total exists.
+- Parsers reject anything unrecognised, with the bad value in the message.
+  No silent defaults.
 
-- How to represent a missing value in numeric columns (0 is not safe).
-- Which C++ type each column gets (float vs double, int sizes).
-- Categories (Sex, Event, Equipment) as 1-byte codes instead of strings.
-- Tested and Sanctioned as booleans.
-- How to store `Place`: finishing position plus a separate code for DQ/NS/G/DD?
-- Whether to load all 42 columns or only core + filter columns.
-- Ranking rule candidate: include a row only if Place is a number
-  (this excludes DQ, NS, DD **and** G in one check).
-
-
-
-+ alone: 371 rows. No number, just the plus sign. Interpreted as an open class (0 kg and over). Stored as WeightClass{0, plus = true}, kept distinct from blank. Not caught by the M0 regex check, because [0-9.]* matches zero digits. Found by the parser's fail-loudly rule.
-
-
-
-
-Name disambiguation: 158,618 rows have #N suffixes on names shared by different people. Deduplicating by name = deduplicating by person.
-Multiple rows per performance: a lifter entering several divisions at one meet appears once per division (e.g. Tamara Walcott, 2025-05-03, twice). Counts and averages must account for this.
-Pound-converted values: totals like 730.28 (= 1,610 lb) come from pound-based meets.

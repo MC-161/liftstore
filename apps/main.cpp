@@ -5,9 +5,11 @@
 #include "engine/parse.h"
 #include "engine/file_buffer.h"
 #include "engine/query.h"
+#include "engine/timing.h"
 #include <vector>
 #include <chrono>
 #include <exception>
+
 
 // static void print_opt(const char* label, std::optional<float> v) {
 //     if (v) { std::printf("  %-14s %g\n", label, *v); }
@@ -47,14 +49,16 @@ int main(int argc, char** argv) {
     if (argc < 2) { std::fprintf(stderr, "usage: engine <csv>\n"); return 1; }
     std::printf("sizeof(Lift) = %zu bytes\n", sizeof(engine::Lift));
     try {
-        auto t0 = std::chrono::steady_clock::now();
+        engine::Timer t;
         engine::FileBuffer file(argv[1]);
+        double io_ms = t.ms();
+
         const char* buf = file.data();
         long size = static_cast<long>(file.size());
 
+
         long rows = 0;
         const char* end = buf + size;
-
         for (const char* p = buf; p < end; ++p) {
             if (*p == '\n') {
                 ++rows;
@@ -81,7 +85,56 @@ int main(int argc, char** argv) {
         }
 
 
-        // 2. Split that data line into fields.
+        // Splitting  only
+        t.reset();
+        {
+            std::array<std::string_view, 42> f;
+            const char* q = data_start;
+            std::size_t sink = 0;
+            while (q < end) {
+                std::size_t count = 0;
+                q = engine::split_line(q, end, f, count);
+                sink += f[0].size();
+            }
+            engine::keep(sink);
+        }
+        double split_ms = t.ms();
+
+        // splitting + make_lift, not stored
+        t.reset();
+        {
+            std::array<std::string_view, 42> f;
+            const char* q = data_start;
+            unsigned long sink = 0;
+            while (q < end) {
+                std::size_t count = 0;
+                q = engine::split_line(q, end, f, count);
+                engine::Lift lift = engine::make_lift(f);
+                sink += lift.place.position + lift.name.size();
+            }
+            engine::keep(sink);
+        }
+        double build_ms = t.ms();
+
+        // C2: split + numbers/enums only (no strings)
+        t.reset();
+        {
+            std::array<std::string_view, 42> f;
+            const char* q = data_start;
+            unsigned long sink = 0;
+            while (q < end) {
+                std::size_t count = 0;
+                q = engine::split_line(q, end, f, count);
+                engine::Lift lift = engine::make_lift_numbers_only(f);
+                sink += lift.place.position;
+            }
+            engine::keep(sink);
+        }
+        double numbers_ms = t.ms();
+
+        t.reset();
+        // real load
+        // Split that data line into fields.
         std::array<std::string_view, 42> fields;
         std::vector<engine::Lift> lifts;
         lifts.reserve(static_cast<std::size_t>(rows - 1));
@@ -101,21 +154,27 @@ int main(int argc, char** argv) {
 
             lifts.push_back(engine::make_lift(fields));
         }
+        double load_ms = t.ms();
+
+
         std::printf("parsed %ld rows\n", parsed);
         std::printf("stored %zu lifts\n", lifts.size());
+        std::printf("A io           %8.1f ms\n", io_ms);
+        std::printf("B split        %8.1f ms\n", split_ms);
+        std::printf("C split+build  %8.1f ms\n", build_ms);
+        std::printf("C2 split+build  %8.1f ms\n", numbers_ms);
+        std::printf("D full load    %8.1f ms\n", load_ms);
 
-        auto t1 = std::chrono::steady_clock::now();
-        double load_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        std::printf("load: %.1f ms\n", load_ms);
+
+        // Query
 
         std::vector<const engine::Lift*> top;
         for (int run = 0; run < 5; ++run) {
-            auto q0 = std::chrono::steady_clock::now();
+            engine::Timer qt;
             top = engine::top_lifters(lifts, engine::Sex::F, engine::Equipment::Raw,
                                       engine::Event::SBD, 10);
-            auto q1 = std::chrono::steady_clock::now();
-            std::chrono::duration<double, std::milli> q = q1 - q0;
-            std::printf("query run %d: %.1f ms\n", run + 1, q.count());
+            std::printf("query run %d: %.1f ms\n", run + 1, qt.ms());
+
         }
 
         for (std::size_t i = 0; i < top.size(); ++i) {

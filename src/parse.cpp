@@ -1,10 +1,9 @@
 #include "engine/parse.h"
 
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <string>
 #include <stdexcept>
+#include <charconv>
 
 namespace engine {
 
@@ -20,33 +19,29 @@ namespace {
 // Text -> float. Strict: the WHOLE field must be a number.
 // Plain std::stof("12abc") would silently return 12.
 float to_float(std::string_view s, const char* what) {
-    std::string str(s);
-    std::size_t used = 0;
     float value = 0.0f;
-    try {
-        value = std::stof(str, &used);
-    } catch (...) {          // stof throws on "abc" or huge values
-        fail(what, s);
-    }
-    if (used != str.size()) {
-        fail(what, s);
-    }
+    const char* first = s.data();
+    const char* last  = first + s.size();
+
+    auto [ptr, ec] = std::from_chars(first, last, value);
+
+    if (ec != std::errc{}) { fail(what, s); }   // not a number, or out of range
+    if (ptr != last)       { fail(what, s); }   // trailing junk
     return value;
+
 }
+
 
 // Text -> int. Same strictness as to_float.
 int to_int(std::string_view s, const char* what) {
-    std::string str(s);
-    std::size_t used = 0;
     int value = 0;
-    try {
-        value = std::stoi(str, &used);
-    } catch (...) {
-        fail(what, s);
-    }
-    if (used != str.size()) {
-        fail(what, s);
-    }
+    const char* first = s.data();
+    const char* last  = first + s.size();
+
+    auto [ptr, ec] = std::from_chars(first, last, value);
+
+    if (ec != std::errc{}) { fail(what, s); }   // not a number, or out of range
+    if (ptr != last)       { fail(what, s); }   // trailing junk
     return value;
 }
 
@@ -119,7 +114,6 @@ Place parse_place(std::string_view s) {
 std::optional<WeightClass> parse_weight_class(std::string_view s) {
     if (s.empty()) { return std::nullopt; }
 
-    std::string_view original = s;
     bool plus = false;
     if (s.back() == '+') {
         plus = true;
@@ -232,6 +226,53 @@ Lift make_lift(const std::array<std::string_view, 42>& f) {
     lift.meet_state        = std::string(f[38]);                // 39 MeetState
     lift.meet_town         = std::string(f[39]);                // 40 MeetTown
     lift.meet_name         = std::string(f[40]);                // 41 MeetName
+    lift.sanctioned        = parse_sanctioned(f[41]);           // 42 Sanctioned
+
+    return lift;
+}
+
+
+    // Like make_lift, but skips the std::string fields.
+    // For measuring how much of the parse cost is strings.
+Lift make_lift_numbers_only(const std::array<std::string_view, 42>& f) {
+    Lift lift;
+
+    lift.sex               = parse_sex(f[1]);                   //  2 Sex
+    lift.event             = parse_event(f[2]);                 //  3 Event
+    lift.equipment         = parse_equipment(f[3]);             //  4 Equipment
+    lift.age               = parse_optional_float(f[4]);        //  5 Age
+
+    lift.bodyweight_kg     = parse_optional_float(f[8]);        //  9 BodyweightKg
+    lift.weight_class      = parse_weight_class(f[9]);          // 10 WeightClassKg
+
+    lift.squat1_kg         = parse_optional_float(f[10]);       // 11 Squat1Kg
+    lift.squat2_kg         = parse_optional_float(f[11]);       // 12 Squat2Kg
+    lift.squat3_kg         = parse_optional_float(f[12]);       // 13 Squat3Kg
+    lift.squat4_kg         = parse_optional_float(f[13]);       // 14 Squat4Kg
+    lift.best3_squat_kg    = parse_optional_float(f[14]);       // 15 Best3SquatKg
+
+    lift.bench1_kg         = parse_optional_float(f[15]);       // 16 Bench1Kg
+    lift.bench2_kg         = parse_optional_float(f[16]);       // 17 Bench2Kg
+    lift.bench3_kg         = parse_optional_float(f[17]);       // 18 Bench3Kg
+    lift.bench4_kg         = parse_optional_float(f[18]);       // 19 Bench4Kg
+    lift.best3_bench_kg    = parse_optional_float(f[19]);       // 20 Best3BenchKg
+
+    lift.deadlift1_kg      = parse_optional_float(f[20]);       // 21 Deadlift1Kg
+    lift.deadlift2_kg      = parse_optional_float(f[21]);       // 22 Deadlift2Kg
+    lift.deadlift3_kg      = parse_optional_float(f[22]);       // 23 Deadlift3Kg
+    lift.deadlift4_kg      = parse_optional_float(f[23]);       // 24 Deadlift4Kg
+    lift.best3_deadlift_kg = parse_optional_float(f[24]);       // 25 Best3DeadliftKg
+
+    lift.total_kg          = parse_optional_float(f[25]);       // 26 TotalKg
+    lift.place             = parse_place(f[26]);                // 27 Place
+
+    lift.dots              = parse_optional_float(f[27]);       // 28 Dots
+    lift.wilks             = parse_optional_float(f[28]);       // 29 Wilks
+    lift.glossbrenner      = parse_optional_float(f[29]);       // 30 Glossbrenner
+    lift.goodlift          = parse_optional_float(f[30]);       // 31 Goodlift
+
+    lift.tested            = parse_tested(f[31]);               // 32 Tested
+
     lift.sanctioned        = parse_sanctioned(f[41]);           // 42 Sanctioned
 
     return lift;
