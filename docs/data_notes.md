@@ -217,3 +217,64 @@ zero digits; the parser's fail-loudly rule caught it.
 - Parsers reject anything unrecognised, with the bad value in the message.
   No silent defaults.
 
+
+
+Decision 1: struct of named std::vectors.
+Fixed compile-time schema + performance goal. Direct typed access, no
+virtual dispatch or variant unwrapping per access, vectorizable scans.
+Rejected type-erasure/variant: runtime schema flexibility isn't needed here
+and costs indirection on every access.
+
+
+Decision 2: categoricals
+- Sex/Event/Equipment: already enum class : uint8_t (3/7/6 values).
+- Twelve text columns have <= 34,791 distinct values: dictionary-encode with
+  uint16 (MeetName needs uint32). 24 bytes/row -> 2 bytes/row, and filters
+  become integer compares.
+- Name (1,013,154 distinct, ~4 rows each): uint32 dictionary. Justified by
+  dedupe becoming an integer compare, not by size alone.
+- Date: NOT a dictionary. Store as an integer (days since epoch / YYYYMMDD)
+  so ordering and range filters work directly.
+- Numeric columns: keep as packed float. Low cardinality (TotalKg: 8,751)
+  but they are the hot scan path; indirection would cost more than it saves.so age 
+
+
+Decision: store all 42 columns.
+Columnar storage means unread columns cost nothing at query time, so keeping
+them preserves future use (profile pages, richer filters) without slowing
+the ranking query. It also keeps the M1 comparison like-for-like: same
+information stored, only the layout changes.
+Effort is tiered: hot columns get careful types and packed layout; cold
+columns are stored correctly with no further optimisation.
+Cost of keeping them: load time and memory, both measured.
+
+
+Decision 3: missing values
+Hot float columns: NaN sentinel in a packed float array.
+- 16 MB vs 32 MB for optional<float>; 16 floats per cache line vs 8.
+- Comparisons with NaN are always false, so scans skip missing rows with
+  no extra branch.
+- Limitation: floats only. Not a problem in this schema — enums and Place
+  are never empty (M0), and dictionary indexes can reserve 0 for empty.
+  Known upgrade path: a validity bitmap (Arrow/Parquet standard) if generic
+  per-column validity is ever needed. 1 bit/row = 504 KB per column.
+
+
+Decision 4: alignment and ownership
+Alignment: index i is the same row in every column. Enforced by a single
+add_row() that appends to all columns, plus a size-equality check after load.
+This is the cost of SoA: a struct can't desynchronise, parallel arrays can.
+Ownership: ColumnStore owns its vectors. Non-copyable (= delete) so an
+accidental copy of ~3 GB is a compile error; explicitly movable so the
+loader can return it. Copy elision means the return usually constructs
+in place with no move at all.
+
+
+Prediction (before implementing):
+Query: 102 ms -> 40 ms, because the filter walks ~40 MB instead of
+2.13 GB (~50x less), while the sort/dedupe over ~200k matches is
+unchanged and sets a floor.
+Load: expect it to get SLOWER (dictionary building adds a hash lookup
+per row per text column; same parsing work otherwise).
+Memory: 3.07 GB -> 1 GB, because 13 text columns go from 24 bytes/row
+to 2-4 bytes/row, and optional<float> becomes packed float.
