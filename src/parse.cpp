@@ -4,6 +4,7 @@
 #include <string>
 #include <stdexcept>
 #include <charconv>
+#include <engine/column_store.h>
 
 namespace engine {
 
@@ -175,6 +176,35 @@ bool parse_sanctioned(std::string_view s) {
     if (s == "No")  { return false; }
     fail("unknown sanctioned value", s);
 }
+
+float parse_float_or_missing(std::string_view s) {
+    if (s.empty()){ return kMissing; }
+    return to_float(s, "bad float");
+}
+
+std::uint32_t parse_date(std::string_view s) {
+    if (s.empty()) { return 0; }
+
+    if (s.size() != 10 || s[4] != '-' || s[7] != '-') {
+        fail("bad date format", s);
+    }
+
+    int year = to_int(s.substr(0,4), "bad date year");
+    int month = to_int(s.substr(5,2), "bad date month");
+    int day = to_int(s.substr(8,2), "bad date day");
+
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+        fail("invalid date", s);
+    }
+
+    return static_cast<std::uint32_t>(year * 10000 + month * 100 + day);
+
+
+}
+
+
+
+
 
 Lift make_lift(const std::array<std::string_view, 42>& f) {
     Lift lift;

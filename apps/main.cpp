@@ -9,6 +9,8 @@
 #include <vector>
 #include <chrono>
 #include <exception>
+#include "engine/column_store.h"
+#include "engine/load_lifts.h"
 
 
 // static void print_opt(const char* label, std::optional<float> v) {
@@ -49,89 +51,51 @@ int main(int argc, char** argv) {
     if (argc < 2) { std::fprintf(stderr, "usage: engine <csv>\n"); return 1; }
     std::printf("sizeof(Lift) = %zu bytes\n", sizeof(engine::Lift));
     try {
+        // ---------------- Baseline: array of structs (M1/M2) ----------------
         engine::Timer t;
-        engine::FileBuffer file(argv[1]);
-        double io_ms = t.ms();
-
-        const char* buf = file.data();
-        long size = static_cast<long>(file.size());
-
-
-        long rows = 0;
-        const char* end = buf + size;
-        for (const char* p = buf; p < end; ++p) {
-            if (*p == '\n') {
-                ++rows;
-            }
-        }
-
-        if (size > 0 && buf[size - 1] != '\n') {
-            ++rows;
-        }
-
-        std::printf("%ld rows\n", rows);
-
-        //    The first data line starts one byte after it.
-        const char* data_start = nullptr;
-        for (const char* p = buf; p < end; ++p) {
-            if (*p == '\n') {
-                data_start = p + 1;
-                break;
-            }
-        }
-        if (data_start == nullptr || data_start >= end) {
-            std::fprintf(stderr, "no data line after header\n");
-            return 1;
-        }
-
-        t.reset();
-        // real load
-        // Split that data line into fields.
-        std::array<std::string_view, 42> fields;
-        std::vector<engine::Lift> lifts;
-        lifts.reserve(static_cast<std::size_t>(rows - 1));
-        const char* p = data_start;
-        long parsed = 0;
-
-
-        while (p < end) {
-            std::size_t count = 0;
-            p = engine::split_line(p, end, fields, count);
-            ++parsed;
-
-            if (count != 42) {
-                std::fprintf(stderr, "row %ld: expected 42 fields, got %zu\n", parsed, count);
-                return 1;
-            }
-
-            lifts.push_back(engine::make_lift(fields));
-        }
-        double load_ms = t.ms();
-
-
-        std::printf("parsed %ld rows\n", parsed);
-        std::printf("stored %zu lifts\n", lifts.size());
-        std::printf("A io           %8.1f ms\n", io_ms);
-        std::printf("D full load    %8.1f ms\n", load_ms);
-
-
-        // Query
+        std::vector<engine::Lift> lifts = engine::load_lifts(argv[1]);
+        std::printf("AoS load   %8.1f ms   (%zu rows)\n", t.ms(), lifts.size());
 
         std::vector<const engine::Lift*> top;
         for (int run = 0; run < 5; ++run) {
             engine::Timer qt;
             top = engine::top_lifters(lifts, engine::Sex::F, engine::Equipment::Raw,
                                       engine::Event::SBD, 10);
-            std::printf("query run %d: %.1f ms\n", run + 1, qt.ms());
-
+            std::printf("AoS query run %d: %6.1f ms\n", run + 1, qt.ms());
         }
 
+        std::printf("\nAoS top 10:\n");
         for (std::size_t i = 0; i < top.size(); ++i) {
             const engine::Lift* l = top[i];
-            std::printf("%2zu. %-28s %7.1f  %s  %s  %s\n", i + 1, l->name.c_str(),
-                        *l->total_kg, l->date.c_str(), l->federation.c_str(),
-                        l->meet_name.c_str());
+            std::printf("%2zu. %-28s %7.2f  %s  %s\n", i + 1, l->name.c_str(),
+                        *l->total_kg, l->date.c_str(), l->federation.c_str());
         }
+
+
+        // ---------------- Columnar ----------------
+        t.reset();
+        engine::ColumnStore store = engine::load_columns(argv[1]);
+        const double soa_load_ms = t.ms();
+        std::printf("\nSoA load   %8.1f ms   (%zu rows)\n", soa_load_ms, store.size());
+
+        std::vector<engine::Ranked> top_soa;
+        for (int run = 0; run < 5; ++run) {
+            engine::Timer qt;
+            top_soa = engine::top_lifters_columnar(store, engine::Sex::F,
+                                                   engine::Equipment::Raw,
+                                                   engine::Event::SBD, 10);
+            std::printf("SoA query run %d: %6.1f ms\n", run + 1, qt.ms());
+        }
+
+        std::printf("\nSoA top 10:\n");
+        for (std::size_t i = 0; i < top_soa.size(); ++i) {
+            const std::uint32_t row = top_soa[i].row;
+            std::string_view name = store.name_dict.value(store.name[row]);
+            std::printf("%2zu. %-28.*s %7.2f  %u\n", i + 1,
+                        static_cast<int>(name.size()), name.data(),
+                        store.total_kg[row], store.date[row]);
+        }
+
 
         return 0;
     }
@@ -141,6 +105,6 @@ int main(int argc, char** argv) {
     }
 
 
-}
+};
 
 

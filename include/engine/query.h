@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "engine/lift.h"
+#include "engine/column_store.h"
 
 namespace engine {
 
@@ -12,4 +13,9 @@ namespace engine {
                                          Sex sex, Equipment equipment, Event event,
                                          std::size_t n);
 
+    struct Ranked { std::uint32_t row; float total; };
+
+    std::vector<Ranked> top_lifters_columnar(const ColumnStore& store,
+                                             Sex sex, Equipment equipment, Event event,
+                                             std::size_t n);
 }

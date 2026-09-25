@@ -277,4 +277,11 @@ unchanged and sets a floor.
 Load: expect it to get SLOWER (dictionary building adds a hash lookup
 per row per text column; same parsing work otherwise).
 Memory: 3.07 GB -> 1 GB, because 13 text columns go from 24 bytes/row
-to 2-4 bytes/row, and optional<float> becomes packed float.
+to 2-4 bytes/row, and optional<float>
+
+
+: returning ColumnStore by value triggers NO constructor
+(C++17 copy elision, constructed directly in the caller). Explicit
+std::move triggers the move constructor (pointer transfers only).
+Moved-from object is still destroyed, holding 0 rows.
+Copy is a compile error by design.becomes packed float.

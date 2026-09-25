@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string_view>
 #include <unordered_set>
+#include "engine/timing.h"
 
 namespace engine {
 
@@ -48,5 +49,56 @@ namespace engine {
         }
         return result;
     }
+
+    std::vector<Ranked> top_lifters_columnar(const ColumnStore &store, Sex sex, Equipment equipment, Event event, std::size_t n) {
+        if (n == 0) {
+            return {};
+        }
+
+        Timer t;
+        std::vector<Ranked> matches;
+        const std::size_t n_rows = store.size();
+        for (std::size_t i = 0; i < n_rows; ++i) {
+            if (store.sex[i] == sex && store.equipment[i] == equipment &&
+                store.event[i] == event && store.place_code[i] == PlaceCode::Placed) {
+                matches.push_back({static_cast<std::uint32_t>(i), store.total_kg[i]});
+                }
+        }
+        const double filter_ms  = t.ms();
+
+        t.reset();
+        std::sort(matches.begin(), matches.end(),
+          [&store](const Ranked& a, const Ranked& b) {
+              if (a.total != b.total) {
+                  return a.total > b.total;
+              }
+              std::string_view na = store.name_dict.value(store.name[a.row]);
+              std::string_view nb = store.name_dict.value(store.name[b.row]);
+              if (na != nb) {
+                  return na < nb;
+              }
+              return store.date[a.row] < store.date[b.row];
+          });
+        const double sort_ms = t.ms();
+
+        t.reset();
+        std::vector<Ranked> result;
+        std::unordered_set<std::uint32_t> seen;
+        for (const Ranked& m : matches) {
+            if (seen.insert(store.name[m.row]).second) {
+                result.push_back(m);
+                if (result.size() == n) { break; }
+            }
+        }
+
+        const double dedupe_ms = t.ms();
+
+        std::fprintf(stderr, "  filter %.1f  sort %.1f  dedupe %.1f  (%zu matches)\n",
+                 filter_ms, sort_ms, dedupe_ms, matches.size());
+        return result;
+
+    }
+
+
 
 }
