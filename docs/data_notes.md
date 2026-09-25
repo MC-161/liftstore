@@ -285,3 +285,19 @@ to 2-4 bytes/row, and optional<float>
 std::move triggers the move constructor (pointer transfers only).
 Moved-from object is still destroyed, holding 0 rows.
 Copy is a compile error by design.becomes packed float.
+
+
+## columnar store, 7 query columns
+
+Query: 103.9 ms -> 5.4 ms (19x), answers byte-identical.
+filter 5.0 ms (4,032,180 rows, ~24 MB of columns, near memory bandwidth)
+sort   0.3 ms (partial_sort k=200 over 375,568 matches, 1 attempt)
+dedupe 0.0 ms (hashing uint32 name indexes)
+
+Attribution: layout alone 103.9 -> 73 ms; std::partial_sort 73 -> 5.4 ms.
+Correctness: doubling-k retry guarantees the result equals a full sort;
+verified by forcing k=5 (retries, same answer) and k=200 (1 attempt).
+
+Prediction was 40 ms. Wrong twice: underestimated the filter win, and
+assumed the sort was an unavoidable floor when it was the wrong algorithm.
+

@@ -49,7 +49,6 @@
 
 int main(int argc, char** argv) {
     if (argc < 2) { std::fprintf(stderr, "usage: engine <csv>\n"); return 1; }
-    std::printf("sizeof(Lift) = %zu bytes\n", sizeof(engine::Lift));
     try {
         // ---------------- Baseline: array of structs (M1/M2) ----------------
         engine::Timer t;
@@ -105,6 +104,5 @@ int main(int argc, char** argv) {
     }
 
 
-};
-
+}
 

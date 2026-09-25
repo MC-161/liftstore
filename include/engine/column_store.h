@@ -82,11 +82,6 @@ namespace engine{
         ColumnStore(ColumnStore&&) noexcept = default;
         ColumnStore& operator=(ColumnStore&&) noexcept = default;
 
-
-        // destructor
-        ~ColumnStore();
-
-
         std::size_t size() const { return total_kg.size(); }
 
         void reserve(std::size_t n);

@@ -66,35 +66,87 @@ namespace engine {
         }
         const double filter_ms  = t.ms();
 
-        t.reset();
-        std::sort(matches.begin(), matches.end(),
-          [&store](const Ranked& a, const Ranked& b) {
-              if (a.total != b.total) {
-                  return a.total > b.total;
-              }
-              std::string_view na = store.name_dict.value(store.name[a.row]);
-              std::string_view nb = store.name_dict.value(store.name[b.row]);
-              if (na != nb) {
-                  return na < nb;
-              }
-              return store.date[a.row] < store.date[b.row];
-          });
-        const double sort_ms = t.ms();
+        // t.reset();
+        // const std::size_t k = std::min<std::size_t>(5, matches.size());
+        // std::partial_sort(matches.begin(), matches.begin() + k, matches.end(),
+        //                   [&store](const Ranked& a, const Ranked& b) {
+        //                       if (a.total != b.total) {
+        //                           return a.total > b.total;
+        //                       }
+        //                       std::string_view na = store.name_dict.value(store.name[a.row]);
+        //                       std::string_view nb = store.name_dict.value(store.name[b.row]);
+        //                       if (na != nb) {
+        //                           return na < nb;
+        //                       }
+        //                       return store.date[a.row] < store.date[b.row];
+        //                   });
+        // const double sort_ms = t.ms();
+        //
+        // t.reset();
+        // std::vector<Ranked> result;
+        // std::unordered_set<std::uint32_t> seen;
+        // for (std::size_t i = 0; i < k; ++i) {
+        //     const Ranked& m = matches[i];
+        //     if (seen.insert(store.name[m.row]).second) {
+        //         result.push_back(m);
+        //         if (result.size() == n) { break; }
+        //     }
+        // }
+        //
+        // if (result.size() < n && k < matches.size()) {
+        //
+        // }
+        // const double dedupe_ms = t.ms();
 
         t.reset();
+        auto cmp = [&store](const Ranked& a, const Ranked& b) {
+            if (a.total != b.total) { return a.total > b.total; }
+            std::string_view na = store.name_dict.value(store.name[a.row]);
+            std::string_view nb = store.name_dict.value(store.name[b.row]);
+            if (na != nb) { return na < nb; }
+            return store.date[a.row] < store.date[b.row];
+        };
+
+        double sort_ms = 0.0;
+        double dedupe_ms = 0.0;
+        int attempts = 0;
+
         std::vector<Ranked> result;
         std::unordered_set<std::uint32_t> seen;
-        for (const Ranked& m : matches) {
-            if (seen.insert(store.name[m.row]).second) {
-                result.push_back(m);
-                if (result.size() == n) { break; }
+
+        std::size_t k = std::min<std::size_t>(200, matches.size());
+
+        while (true) {
+            ++attempts;
+            result.clear();
+            seen.clear();
+
+            Timer ts;
+            std::partial_sort(matches.begin(),
+                              matches.begin() + static_cast<std::ptrdiff_t>(k),
+                              matches.end(), cmp);
+            sort_ms += ts.ms();
+
+            Timer td;
+            for (std::size_t i = 0; i < k; ++i) {
+                if (seen.insert(store.name[matches[i].row]).second) {
+                    result.push_back(matches[i]);
+                    if (result.size() == n) { break; }
+                }
             }
+            dedupe_ms += td.ms();
+
+            if (result.size() == n) { break; }          // found enough
+            if (k == matches.size()) { break; }         // sorted everything: this is all there is
+
+            k = std::min(k * 2, matches.size());        // widen and try again
         }
 
-        const double dedupe_ms = t.ms();
 
-        std::fprintf(stderr, "  filter %.1f  sort %.1f  dedupe %.1f  (%zu matches)\n",
-                 filter_ms, sort_ms, dedupe_ms, matches.size());
+        std::fprintf(stderr, "  filter %.1f  sort %.1f  dedupe %.1f  (%zu matches, %d attempt%s)\n",
+                 filter_ms, sort_ms, dedupe_ms, matches.size(),
+                 attempts, attempts == 1 ? "" : "s");
+
         return result;
 
     }

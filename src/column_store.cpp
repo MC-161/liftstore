@@ -7,9 +7,6 @@
 #include <string>
 namespace engine {
 
-    ColumnStore::~ColumnStore() {
-        std::fprintf(stderr, "[ColumnStore] destructor (%zu rows)\n", total_kg.size());
-    }
 
     ColumnStore load_columns(const char* path) {
         FileBuffer file(path);
@@ -109,6 +106,9 @@ namespace engine {
                               }
         return true;
     }
+
+    static_assert(std::is_nothrow_move_constructible_v<ColumnStore>);
+    static_assert(!std::is_copy_constructible_v<ColumnStore>);
 
 
 }
