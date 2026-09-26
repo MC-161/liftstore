@@ -48,53 +48,60 @@
 
 
 int main(int argc, char** argv) {
-    if (argc < 2) { std::fprintf(stderr, "usage: engine <csv>\n"); return 1; }
+    // if (argc < 2) { std::fprintf(stderr, "usage: engine <csv>\n"); return 1; }
+    if (argc < 2) { std::fprintf(stderr, "usage: engine <csv> [aos|soa]\n"); return 1; }
+
+    // No second argument = run both.
+    const bool run_aos = (argc < 3) || std::string_view(argv[2]) != "soa";
+    const bool run_soa = (argc < 3) || std::string_view(argv[2]) != "aos";
     try {
-        // ---------------- Baseline: array of structs (M1/M2) ----------------
-        engine::Timer t;
-        std::vector<engine::Lift> lifts = engine::load_lifts(argv[1]);
-        std::printf("AoS load   %8.1f ms   (%zu rows)\n", t.ms(), lifts.size());
+        if (run_aos) {
+            // ---------------- Baseline: array of structs (M1/M2) ----------------
+            engine::Timer t;
+            std::vector<engine::Lift> lifts = engine::load_lifts(argv[1]);
+            std::printf("AoS load   %8.1f ms   (%zu rows)\n", t.ms(), lifts.size());
 
-        std::vector<const engine::Lift*> top;
-        for (int run = 0; run < 5; ++run) {
-            engine::Timer qt;
-            top = engine::top_lifters(lifts, engine::Sex::F, engine::Equipment::Raw,
-                                      engine::Event::SBD, 10);
-            std::printf("AoS query run %d: %6.1f ms\n", run + 1, qt.ms());
+            std::vector<const engine::Lift*> top;
+            for (int run = 0; run < 5; ++run) {
+                engine::Timer qt;
+                top = engine::top_lifters(lifts, engine::Sex::F, engine::Equipment::Raw,
+                                          engine::Event::SBD, 10);
+                std::printf("AoS query run %d: %6.1f ms\n", run + 1, qt.ms());
+            }
+
+            std::printf("\nAoS top 10:\n");
+            for (std::size_t i = 0; i < top.size(); ++i) {
+                const engine::Lift* l = top[i];
+                std::printf("%2zu. %-28s %7.2f  %s  %s\n", i + 1, l->name.c_str(),
+                            *l->total_kg, l->date.c_str(), l->federation.c_str());
+            }
         }
 
-        std::printf("\nAoS top 10:\n");
-        for (std::size_t i = 0; i < top.size(); ++i) {
-            const engine::Lift* l = top[i];
-            std::printf("%2zu. %-28s %7.2f  %s  %s\n", i + 1, l->name.c_str(),
-                        *l->total_kg, l->date.c_str(), l->federation.c_str());
+        if (run_soa) {
+            // ---------------- Columnar ----------------
+            engine::Timer t;;
+            engine::ColumnStore store = engine::load_columns(argv[1]);
+            const double soa_load_ms = t.ms();
+            std::printf("\nSoA load   %8.1f ms   (%zu rows)\n", soa_load_ms, store.size());
+
+            std::vector<engine::Ranked> top_soa;
+            for (int run = 0; run < 5; ++run) {
+                engine::Timer qt;
+                top_soa = engine::top_lifters_columnar(store, engine::Sex::F,
+                                                       engine::Equipment::Raw,
+                                                       engine::Event::SBD, 10);
+                std::printf("SoA query run %d: %6.1f ms\n", run + 1, qt.ms());
+            }
+
+            std::printf("\nSoA top 10:\n");
+            for (std::size_t i = 0; i < top_soa.size(); ++i) {
+                const std::uint32_t row = top_soa[i].row;
+                std::string_view name = store.name_dict.value(store.name[row]);
+                std::printf("%2zu. %-28.*s %7.2f  %u\n", i + 1,
+                            static_cast<int>(name.size()), name.data(),
+                            store.total_kg[row], store.date[row]);
+            }
         }
-
-
-        // ---------------- Columnar ----------------
-        t.reset();
-        engine::ColumnStore store = engine::load_columns(argv[1]);
-        const double soa_load_ms = t.ms();
-        std::printf("\nSoA load   %8.1f ms   (%zu rows)\n", soa_load_ms, store.size());
-
-        std::vector<engine::Ranked> top_soa;
-        for (int run = 0; run < 5; ++run) {
-            engine::Timer qt;
-            top_soa = engine::top_lifters_columnar(store, engine::Sex::F,
-                                                   engine::Equipment::Raw,
-                                                   engine::Event::SBD, 10);
-            std::printf("SoA query run %d: %6.1f ms\n", run + 1, qt.ms());
-        }
-
-        std::printf("\nSoA top 10:\n");
-        for (std::size_t i = 0; i < top_soa.size(); ++i) {
-            const std::uint32_t row = top_soa[i].row;
-            std::string_view name = store.name_dict.value(store.name[row]);
-            std::printf("%2zu. %-28.*s %7.2f  %u\n", i + 1,
-                        static_cast<int>(name.size()), name.data(),
-                        store.total_kg[row], store.date[row]);
-        }
-
 
         return 0;
     }

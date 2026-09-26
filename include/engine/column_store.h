@@ -67,7 +67,6 @@ namespace engine{
 
 
 
-
     class ColumnStore {
     public:
         ColumnStore() = default;

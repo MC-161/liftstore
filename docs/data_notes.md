@@ -301,3 +301,25 @@ verified by forcing k=5 (retries, same answer) and k=200 (1 attempt).
 Prediction was 40 ms. Wrong twice: underestimated the filter win, and
 assumed the sort was an unavoidable floor when it was the wrong algorithm.
 
+Query:  101.7 -> 5.2 ms (19.6x). filter 5.0 / sort 0.3 / dedupe 0.0 ms
+Memory: peak 3.07 -> 1.49 GB (2.1x). Store alone ~700 MB vs ~2.2 GB of
+structs (~3x); peak includes the 786 MB file buffer, still alive
+during load.
+Load:   2500 -> 3641 ms (1.5x SLOWER). 12 dictionaries x 4M rows = 48M
+hash lookups. Instructions +7%, but sys time 0.71 -> 0.17 s and
+page reclaims 287,619 -> 91,728.
+Answers identical to the baseline, verified on every run.
+
+Trade-off: pay once at load to make every query cheap. Right for a
+load-once, query-many engine; wrong if loading per query.
+
+Prediction vs reality:
+query  40 ms predicted -> 5.2 ms. Underestimated both the layout win
+and the fact that std::sort was the wrong algorithm (partial_sort
+cut the sort 68.8 -> 0.3 ms).
+memory 1 GB predicted -> 1.49 GB peak (~700 MB store). Peak includes
+the file buffer; the store alone is close to the prediction.
+load   predicted slower -> confirmed slower.
+
+Also: adding 35 columns after stage 1 cost the query NOTHING (5.4 -> 5.2 ms),
+which is the columnar property in one measurement.
