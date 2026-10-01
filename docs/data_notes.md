@@ -323,3 +323,13 @@ load   predicted slower -> confirmed slower.
 
 Also: adding 35 columns after stage 1 cost the query NOTHING (5.4 -> 5.2 ms),
 which is the columnar property in one measurement.
+
+
+WeightClassKg notations (three, all now handled):
+<number>        plain class
+<number>+       "and over" (open class)
+-<number>       25 rows (-74 ×5, -90 ×8, -93 ×12): European "up to N kg"
+notation, the same class as <number>. Parsed by stripping
+the minus; plus = false.
++               371 rows, bare plus: open class with no lower limit.
+Behaviour change: -74 previously stored as -74.0, now stored as 74.0.

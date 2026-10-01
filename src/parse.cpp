@@ -118,11 +118,22 @@ std::optional<WeightClass> parse_weight_class(std::string_view s) {
     bool plus = false;
     if (s.back() == '+') {
         plus = true;
-        s = s.substr(0, s.size() - 1);
+        s.remove_suffix(1);
+        if (s.empty()) {
+            // Field was exactly "+": open class, no lower limit (371 rows).
+            return WeightClass{0.0f, true};
+        }
     }
-    if (s.empty()) {
-        return WeightClass{0.0f, true};
+
+
+    // "-74" is the European "up to 74 kg" notation: the same class as "74".
+    if (s.front() == '-') {
+        s.remove_prefix(1);
+        if (s.empty()) {
+            fail("weight class with no number", s);
+        }
     }
+
     float kg = to_float(s, "bad weight class");
     return WeightClass{kg, plus};
 }

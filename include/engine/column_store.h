@@ -118,6 +118,11 @@ namespace engine{
         // Split into two columns: the kg value (NaN when empty) and the
         // "and over" flag.
         std::vector<float>        weight_class_kg;
+
+        // DERIVED (not in the CSV): IPF class index from sex + bodyweight.
+        // 255 (kNoIpfClass) = unassignable: no bodyweight, or Mx.
+        std::vector<std::uint8_t> ipf_class;
+
         std::vector<std::uint8_t> weight_class_plus;
 
         // Attempts and bests. Negative = failed attempt at that
@@ -188,6 +193,7 @@ namespace engine{
         Dictionary meet_name_dict;
 
         std::vector<std::uint8_t> sanctioned;      // 42 ("Yes" / "No", never blank)
+
     };
 
 

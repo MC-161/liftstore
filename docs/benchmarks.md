@@ -165,4 +165,8 @@ Query: 102.2 ms best (unchanged, as expected)
 Peak footprint: 3.07 GB (unchanged: same Lift struct)
 
 
-
+Percentile index: 52 ms build, 563 groups, 3,721,912 values, 14.2 MB
+Query: 0.2 us (binary search, ~16 comparisons over 65,964 values)
+reserve: memory 20.6 -> 14.2 MB, build time 46.6 -> 51.8 ms
+(opposite sign to M1: here the counting pass costs more than the
+~14 MB of copying it avoids)

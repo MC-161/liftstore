@@ -11,6 +11,8 @@
 #include <exception>
 #include "engine/column_store.h"
 #include "engine/load_lifts.h"
+#include "engine/ipf_class.h"
+#include "engine/percentile.h"
 
 
 // static void print_opt(const char* label, std::optional<float> v) {
@@ -100,6 +102,34 @@ int main(int argc, char** argv) {
                 std::printf("%2zu. %-28.*s %7.2f  %u\n", i + 1,
                             static_cast<int>(name.size()), name.data(),
                             store.total_kg[row], store.date[row]);
+            }
+
+            std::array<std::size_t, 10> counts{};
+            for (std::size_t i = 0; i < store.size(); ++i) {
+                const std::uint8_t c = store.ipf_class[i];
+                counts[c == engine::kNoIpfClass ? 9 : c]++;
+            }
+            for (std::size_t i = 0; i < counts.size(); ++i) {
+                std::printf("ipf_class %zu: %zu\n", i, counts[i]);
+            }
+
+            engine::Timer pt;
+            engine::PercentileIndex pct(store);
+            std::printf("percentile index: %.1f ms  %zu groups  %zu values  %.1f MB\n",
+                        pt.ms(), pct.group_count(), pct.total_values(),
+                        pct.bytes() / 1048576.0);
+
+            // Women, Raw, full power, 63 kg class (index 4), 500 kg total.
+            engine::Timer qt;
+            engine::PercentileResult r = pct.percentile_of(
+                engine::Sex::F, engine::Equipment::Raw, engine::Event::SBD, 4, 500.0f);
+            const double q_us = qt.ms() * 1000.0;
+
+            if (r.found) {
+                std::printf("500.0 kg, F Raw SBD 63kg: %.2f%%  (%zu below, n=%zu)  %.1f us\n",
+                            r.percentile, r.below, r.n, q_us);
+            } else {
+                std::printf("no data for that group\n");
             }
         }
 

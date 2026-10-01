@@ -1,6 +1,7 @@
 #include "engine/column_store.h"
 #include <cstdio>
 #include "engine/file_buffer.h"
+#include "engine/ipf_class.h"
 #include "engine/parse.h"
 #include <array>
 #include <stdexcept>
@@ -25,6 +26,9 @@ namespace engine {
     ColumnStore load_columns(const char* path) {
         FileBuffer file(path);
         ColumnStore store;
+
+        // DERIVED from sex + bodyweight_kg. 255 = unassignable (no bodyweight, or Mx).
+        std::vector<std::uint8_t> ipf_class;
 
         // ROW COUNT
         const char* buf = file.data();
@@ -81,14 +85,16 @@ namespace engine {
             }
 
             store.name.push_back(store.name_dict.intern(fields[0]));          //  1 Name (uint32)
-            store.sex.push_back(parse_sex(fields[1]));                        //  2 Sex
+            const Sex sex = parse_sex(fields[1]);                      // 2 Sex
+            store.sex.push_back(sex);                   //  2 Sex
             store.event.push_back(parse_event(fields[2]));                    //  3 Event
             store.equipment.push_back(parse_equipment(fields[3]));            //  4 Equipment
             store.age.push_back(parse_float_or_missing(fields[4]));           //  5 Age
             store.age_class.push_back(intern16(store.age_class_dict, fields[5]));               //  6
             store.birth_year_class.push_back(intern16(store.birth_year_class_dict, fields[6])); //  7
             store.division.push_back(intern16(store.division_dict, fields[7]));                 //  8
-            store.bodyweight_kg.push_back(parse_float_or_missing(fields[8])); //  9 BodyweightKg
+            const float bw = parse_float_or_missing(fields[8]);        // 9 BodyweightKg
+            store.bodyweight_kg.push_back(bw);
 
             // 10 WeightClassKg -> two columns: the kg value and the "and over" flag.
             std::optional<WeightClass> wc = parse_weight_class(fields[9]);
@@ -99,6 +105,8 @@ namespace engine {
                 store.weight_class_kg.push_back(kMissing);
                 store.weight_class_plus.push_back(0);
             }
+
+            store.ipf_class.push_back(ipf_class_index(sex, bw));
 
             store.squat1_kg.push_back(parse_float_or_missing(fields[10]));         // 11
             store.squat2_kg.push_back(parse_float_or_missing(fields[11]));         // 12
@@ -140,6 +148,7 @@ namespace engine {
             store.meet_town.push_back(intern16(store.meet_town_dict, fields[39]));                 // 40
             store.meet_name.push_back(store.meet_name_dict.intern(fields[40]));    // 41 (uint32)
             store.sanctioned.push_back(parse_sanctioned(fields[41]) ? 1 : 0);      // 42 Sanctioned
+
         }
 
         // Every uint16 column: confirm the cast above never truncated.
@@ -169,6 +178,7 @@ namespace engine {
         store.meet_town_dict.done_loading();
         store.meet_name_dict.done_loading();
 
+
     if (!store.check_invariant()) {
         throw std::runtime_error("columns out of sync after load");
     }
@@ -187,6 +197,7 @@ namespace engine {
     division.reserve(n);
     bodyweight_kg.reserve(n);
     weight_class_kg.reserve(n);
+    ipf_class.reserve(n);
     weight_class_plus.reserve(n);
     squat1_kg.reserve(n);
     squat2_kg.reserve(n);
@@ -228,7 +239,7 @@ namespace engine {
     for (std::size_t s : {name.size(), sex.size(), event.size(), equipment.size(),
                           age.size(), age_class.size(), birth_year_class.size(),
                           division.size(), bodyweight_kg.size(),
-                          weight_class_kg.size(), weight_class_plus.size(),
+                          weight_class_kg.size(), weight_class_plus.size(), ipf_class.size(),
                           squat1_kg.size(), squat2_kg.size(), squat3_kg.size(),
                           squat4_kg.size(), best3_squat_kg.size(),
                           bench1_kg.size(), bench2_kg.size(), bench3_kg.size(),

@@ -87,6 +87,7 @@ struct Lift {
     std::string meet_town;                     // 40 MeetTown
     std::string meet_name;                     // 41 MeetName
     bool sanctioned = false;                   // 42 Sanctioned ("Yes" / "No")
+
 };
 
 }
