@@ -21,10 +21,14 @@ add_link_options($<$<CONFIG:Debug>:-fsanitize=address,undefined>)
 add_library(engine_warnings INTERFACE)
 target_compile_options(engine_warnings INTERFACE -Wall -Wextra)
 
-add_subdirectory(src)
-add_subdirectory(apps)
 
 include(FetchContent)
+find_package(Protobuf CONFIG REQUIRED)
+find_package(gRPC CONFIG REQUIRED)
+
+add_subdirectory(src)
+add_subdirectory(apps)
+add_subdirectory(proto)
 
 if(ENGINE_BUILD_TESTS)
     FetchContent_Declare(googletest

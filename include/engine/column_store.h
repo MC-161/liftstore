@@ -29,13 +29,20 @@ namespace engine{
 
         // Returns the index for s, adding it if it is new.
         std::uint32_t intern(std::string_view s) {
+            if (s == last_key_) { return last_index_; }
+
+            std::uint32_t index;
             auto it = lookup_.find(s);
             if (it != lookup_.end()) {
-                return it->second;
+                index = it->second;
+            } else {
+                index = static_cast<std::uint32_t>(values_.size());
+                values_.emplace_back(s);
+                lookup_.emplace(s, index);
             }
-            const std::uint32_t index = static_cast<std::uint32_t>(values_.size());
-            values_.emplace_back(s);
-            lookup_.emplace(s, index);   // key points into the file buffer
+
+            last_key_ = s;              // one place, both paths
+            last_index_ = index;
             return index;
         }
 
@@ -53,12 +60,14 @@ namespace engine{
 
         // Drops the build-time lookup table, whose keys point into the file
         // buffer. Call once loading is finished.
-        void done_loading() { lookup_.clear(); }
+        void done_loading() { lookup_.clear(); last_key_ = {}; }
 
 
     private:
         std::vector<std::string> values_;
         std::unordered_map<std::string_view, std::uint32_t> lookup_;
+        std::string_view last_key_{};      // starts empty
+        std::uint32_t last_index_ = 0;
     };
 
 

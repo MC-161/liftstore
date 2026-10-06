@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package engine.v1;
+
+option go_package = "github.com/MC-161/liftstore/gen/engine/v1;enginev1";
+
+service Engine {
+    rpc TopLifters (TopLiftersRequest) returns (TopLiftersResponse);
+    rpc Percentile (PercentileRequest) returns (PercentileResponse);
+}
+
+enum Sex {
+    SEX_UNSPECIFIED = 0;    // enum values need numbers too, and 0 must exist
+    SEX_M = 1;
+    SEX_F =  2;
+    SEX_MX = 3;
+}
+
+enum Equipment {
+    EQUIPMENT_UNSPECIFIED = 0;
+    EQUIPMENT_RAW = 1;
+    EQUIPMENT_WRAPS = 2;
+    EQUIPMENT_SINGLE_PLY = 3;
+    EQUIPMENT_MULTI_PLY = 4;
+    EQUIPMENT_UNLIMTED = 5;
+    EQUIPMENT_STRAPS = 6;
+}
+
+enum Event {
+    EVENT_UNSPECIFIED = 0;
+    EVENT_SBD = 1;
+    EVENT_B = 2;
+    EVENT_D = 3;
+    EVENT_BD = 4;
+    EVENT_S = 5;
+    EVENT_SB = 6;
+    EVENT_SD = 7;
+}
+
+message TopLiftersRequest {
+    Sex sex = 1;
+    Equipment equipment = 2;
+    Event event = 3;
+    uint32 limit = 4;
+}
+message LifterResult {
+    string name = 1;
+    float total = 2;
+    string date = 3;
+    string federation =4;
+    string meet = 5;
+
+}
+message TopLiftersResponse {
+    repeated LifterResult results = 1;  // repeated = list
+}
+
+
+message PercentileRequest{
+    Sex sex = 1;
+    Equipment equipment = 2;
+    Event event = 3;
+    float bodyweight = 4;
+    float total = 5;
+}
+
+message PercentileResponse {
+    double percentile   = 1;
+    uint32 below        = 2;
+    uint32 n            = 3;
+    string weight_class = 4;
+}

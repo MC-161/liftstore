@@ -14,7 +14,7 @@ namespace engine {
 // meaningless, and the caller needs n to judge that (percentile-design.md,
 // decision 3).
 struct PercentileResult {
-    bool found = false;          // false = no such group, or unassignable input
+    bool focna whaund = false;          // false = no such group, or unassignable input
     double percentile = 0.0;     // 0-100: share of the group strictly below
     std::size_t below = 0;       // count strictly below the query value
     std::size_t n = 0;           // group size

@@ -333,3 +333,49 @@ notation, the same class as <number>. Parsed by stripping
 the minus; plus = false.
 +               371 rows, bare plus: open class with no lower limit.
 Behaviour change: -74 previously stored as -74.0, now stored as 74.0.
+
+
+
+
+Profiled with Instruments Time Profiler on a RelWithDebInfo (-O2) build.
+Prediction vs profile (grouped by concept, since the profiler reports
+machinery):
+split_line      predicted 604 ms  → profiled 777 ms (17.6%, largest single fn)
+number parsing  predicted 1042 ms → profiled ~728 ms (4 entries)
+interning       predicted 1300 ms → profiled ~1118 ms (4 entries)
+ipf_class+push  predicted  550 ms → profiled ~455 ms (load_columns self)
+I/O             predicted  103 ms → INVISIBLE (kernel time, not CPU samples)
+
+Surprises:
+- __tolower at 120 ms (2.7%) inside std::from_chars. "Locale-independent
+  by specification" does not mean no case-folding in the implementation.
+- split_line was the single biggest function, which nobody predicted.
+- I/O absent: a sampling profiler counts CPU in-process, not wall time.
+  time -l and the profiler answer different questions.
+
+Optimisation: last-value cache in Dictionary::intern, justified by measured
+repeat rates (federation 99.9%, meet fields 98-100%, name 1.4% — the file
+is ordered by meet, so meet properties barely change between rows).
+load         3843 -> 3618 ms (-5.9%)
+instructions 42.1 -> 39.4 B  (-6.4%)
+answers unchanged (563 groups / 3,721,912 values / same top 10)
+
+Predicted ~950 ms saving, got 209 ms. The -O2 profile implied 23 ns per
+hash lookup; the measured cost at -O3 was ~14 cycles (~4 ns). Profile
+attribution does not transfer between optimisation levels — the profile
+ranks suspects correctly but does not give you a budget.
+
+Bug found en route: the cache updated last_key_ only on the insert path,
+so after warm-up it froze and never hit. Found by preparing to instrument
+hit rates rather than by reasoning. Same shape as the early-return cleanup
+bug in Ch 14: several exits, each needing bookkeeping, one forgotten.
+
+
+
+Auto-vectorisation check (Godbolt, armv8-a clang -O3): split_line compiles
+to scalar ldrb/cmp/b.eq, one byte per iteration. Not a missed optimisation
+— the loop has a data-dependent early exit (return on '\n') and a
+loop-carried dependency (field_start), so a compiler cannot prove it may
+read ahead. memchr is fast because it is hand-written asm that may over-read
+within a page and mask the result, a correctness argument the compiler
+cannot make on the caller's behalf.i agree
