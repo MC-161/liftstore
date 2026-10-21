@@ -207,4 +207,5 @@ namespace engine{
 
 
     ColumnStore load_columns(const char* path);
+    const std::vector<float>& column_of(const ColumnStore& s, LiftKind w);
 }

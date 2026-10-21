@@ -258,4 +258,16 @@ namespace engine {
     }
     return true;
     }
+
+
+    // Which column this lift reads from.
+    const std::vector<float>& column_of(const ColumnStore& s, LiftKind w) {
+        switch (w) {
+            case LiftKind::Squat:    return s.best3_squat_kg;
+            case LiftKind::Bench:    return s.best3_bench_kg;
+            case LiftKind::Deadlift: return s.best3_deadlift_kg;
+            case LiftKind::Total:    break;
+        }
+        return s.total_kg;
+    }
 }

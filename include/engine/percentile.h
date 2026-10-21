@@ -14,11 +14,17 @@ namespace engine {
 // meaningless, and the caller needs n to judge that (percentile-design.md,
 // decision 3).
 struct PercentileResult {
-    bool focna whaund = false;          // false = no such group, or unassignable input
+    bool found = false;          // false = no such group, or unassignable input
     double percentile = 0.0;     // 0-100: share of the group strictly below
     std::size_t below = 0;       // count strictly below the query value
     std::size_t n = 0;           // group size
 };
+
+
+
+struct Entry      { float value; std::uint32_t row; };
+struct LiftIndex  { std::vector<Entry> sorted; double mean = 0.0; double sd = 0.0; };
+struct GroupIndex { LiftIndex squat, bench, deadlift, total; };
 
 // Sorted totals per comparison group, built once from a loaded ColumnStore.
 //
@@ -40,9 +46,11 @@ public:
     PercentileResult percentile_of(Sex sex, Equipment equipment, Event event,
                                    std::uint8_t ipf_class, float total_kg) const;
 
+
     std::size_t group_count() const;    // groups with at least one value
     std::size_t total_values() const;   // values across all groups
     std::size_t bytes() const;          // memory held by the sorted arrays
+    std::size_t values(LiftKind which) const;   // entries for one lift, all groups
 
 private:
     // The key space is dense and tiny: 3 sexes x 6 equipment x 7 events x
@@ -55,10 +63,12 @@ private:
     static constexpr std::size_t kSlots = kSexes * kEquipment * kEvents * kClasses;
     static constexpr std::size_t kNoSlot = kSlots;
 
+
     static std::size_t slot_of(Sex sex, Equipment equipment, Event event,
                                std::uint8_t ipf_class);
 
-    std::vector<std::vector<float>> groups_;   // kSlots entries, most small
+    std::vector<GroupIndex> groups_;   // kSlots entries, most small
+
 };
 
 }  // namespace engine

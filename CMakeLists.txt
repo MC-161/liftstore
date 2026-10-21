@@ -27,8 +27,9 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 
 add_subdirectory(src)
-add_subdirectory(apps)
 add_subdirectory(proto)
+add_subdirectory(service)
+add_subdirectory(apps)
 
 if(ENGINE_BUILD_TESTS)
     FetchContent_Declare(googletest

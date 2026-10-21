@@ -170,3 +170,19 @@ Query: 0.2 us (binary search, ~16 comparisons over 65,964 values)
 reserve: memory 20.6 -> 14.2 MB, build time 46.6 -> 51.8 ms
 (opposite sign to M1: here the counting pass costs more than the
 ~14 MB of copying it avoids)
+
+
+gRPC server, 50 concurrent clients, ghz -c 50 -n 5000,
+F/Raw/SBD limit=50, full dataset (4,032,180 rows),
+Release build, warm-up run discarded, 4 runs each, same session:
+
+per-query stderr trace OFF:  1016 req/s   p99 ~160 ms
+per-query stderr trace ON:    875 req/s   p99 ~230 ms
+
+Logging in the request path costs ~14% throughput and ~45% p99.
+Sets do not overlap (min off = 1004 > max on = 903).
+
+Not measurable: matches.reserve() showed no effect above
+run-to-run variation; kept on principle.
+Cold start: first 5,000 requests after startup run at ~43% of
+steady-state throughput.

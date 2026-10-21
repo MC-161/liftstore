@@ -4,8 +4,42 @@
 #include <string_view>
 #include <unordered_set>
 #include "engine/timing.h"
+#include <cstdlib>
 
 namespace engine {
+    namespace {
+        struct ScanResult { std::size_t below = 0; std::size_t n = 0; };
+
+        ScanResult scan_pop( const ColumnStore& store,
+        Sex sex, Equipment equipment, Event event,
+        LiftKind condition_lift, float condition_value,
+        LiftKind target_lift,    float target_value,
+        float tol) {
+
+            ScanResult r;
+            const std::vector<float>& cond_col = column_of(store, condition_lift);
+            const std::vector<float>& targ_col = column_of(store, target_lift);
+
+            for (std::size_t i = 0; i < store.size(); ++i) {
+                if (store.place_code[i] != PlaceCode::Placed || store.equipment[i] != equipment || store.event[i] != event || store.sex[i] != sex) {
+                    continue;
+                }
+
+                const float row_cv = cond_col[i];   // their squat ex
+                if (is_missing(row_cv) ||
+                    row_cv < condition_value - tol ||
+                    row_cv > condition_value + tol) { continue; }
+
+                const float row_tv = targ_col[i];
+                if (is_missing(row_tv)) { continue; }
+
+                ++r.n;
+                if (row_tv < target_value) { ++r.below; }   // STRICTLY below
+            }
+
+            return r;
+        }
+    }
 
     std::vector<const Lift*> top_lifters(const std::vector<Lift>& lifts,
                                          Sex sex, Equipment equipment, Event event,
@@ -56,8 +90,16 @@ namespace engine {
         }
 
         Timer t;
-        std::vector<Ranked> matches;
         const std::size_t n_rows = store.size();
+
+        std::vector<Ranked> matches;
+        // Without this, every request grows this vector from empty through a dozen
+        // reallocations -- up to ~12 MB for the largest group (M/Raw/SBD, ~1.6M
+        // matches). Under concurrency that is heavy malloc traffic on a lock.
+        // n_rows/10 is a compromise: it covers most groups in one allocation while
+        // keeping the transient cost ~3 MB per in-flight request. Reserving for the
+        // worst case instead would be 12 MB x 50 concurrent = 640 MB.
+        matches.reserve(n_rows / 10);
         for (std::size_t i = 0; i < n_rows; ++i) {
             if (store.sex[i] == sex && store.equipment[i] == equipment &&
                 store.event[i] == event && store.place_code[i] == PlaceCode::Placed) {
@@ -66,37 +108,6 @@ namespace engine {
         }
         const double filter_ms  = t.ms();
 
-        // t.reset();
-        // const std::size_t k = std::min<std::size_t>(5, matches.size());
-        // std::partial_sort(matches.begin(), matches.begin() + k, matches.end(),
-        //                   [&store](const Ranked& a, const Ranked& b) {
-        //                       if (a.total != b.total) {
-        //                           return a.total > b.total;
-        //                       }
-        //                       std::string_view na = store.name_dict.value(store.name[a.row]);
-        //                       std::string_view nb = store.name_dict.value(store.name[b.row]);
-        //                       if (na != nb) {
-        //                           return na < nb;
-        //                       }
-        //                       return store.date[a.row] < store.date[b.row];
-        //                   });
-        // const double sort_ms = t.ms();
-        //
-        // t.reset();
-        // std::vector<Ranked> result;
-        // std::unordered_set<std::uint32_t> seen;
-        // for (std::size_t i = 0; i < k; ++i) {
-        //     const Ranked& m = matches[i];
-        //     if (seen.insert(store.name[m.row]).second) {
-        //         result.push_back(m);
-        //         if (result.size() == n) { break; }
-        //     }
-        // }
-        //
-        // if (result.size() < n && k < matches.size()) {
-        //
-        // }
-        // const double dedupe_ms = t.ms();
 
         t.reset();
         auto cmp = [&store](const Ranked& a, const Ranked& b) {
@@ -143,13 +154,57 @@ namespace engine {
         }
 
 
-        std::fprintf(stderr, "  filter %.1f  sort %.1f  dedupe %.1f  (%zu matches, %d attempt%s)\n",
-                 filter_ms, sort_ms, dedupe_ms, matches.size(),
-                 attempts, attempts == 1 ? "" : "s");
+        // Per-query trace, off by default: stderr is a shared FILE* with an
+        // internal lock, so leaving this on makes every handler thread queue
+        // behind every other one. Set ENGINE_QUERY_TRACE=1 to turn it back on.
+        // Function-local static: initialised once, thread-safely , so
+        // the hot path reads a bool.
+        static const bool trace = std::getenv("ENGINE_QUERY_TRACE") != nullptr;
+        if (trace) {
+            std::fprintf(stderr, "  filter %.1f  sort %.1f  dedupe %.1f  (%zu matches, %d attempt%s)\n",
+                         filter_ms, sort_ms, dedupe_ms, matches.size(),
+                         attempts, attempts == 1 ? "" : "s");
+        }
 
         return result;
 
     }
+
+
+
+
+    ConditionalResult conditional_percentile(
+        const ColumnStore& store,
+        Sex sex, Equipment equipment, Event event,
+        LiftKind condition_lift, float condition_value,
+        LiftKind target_lift,    float target_value,
+        float tol , std::size_t min_n ) {
+
+        ConditionalResult res;
+
+
+        // helper function scans once at a given tolerance and return { below , n }
+        ScanResult r = scan_pop(store, sex, equipment, event,
+                        condition_lift, condition_value,
+                        target_lift, target_value, tol);
+        float used = tol;
+
+        // widen once if the sample is too small
+        if (r.n < min_n) {
+            used = tol * 2.0f;
+            r = scan_pop(store, sex, equipment, event,
+                     condition_lift, condition_value,
+                     target_lift, target_value, used);
+        }
+
+        res.n = r.n;
+        res.below = r.below;
+        res.tol_used = used;
+        res.found = (r.n > 0);
+        res.percentile = (r.n > 0) ? 100.0 * double(r.below) / double(r.n) : 0.0;
+
+        return res;
+}
 
 
 

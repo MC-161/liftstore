@@ -9,6 +9,8 @@ enum class Sex : std::uint8_t { M, F, Mx };
 
 enum class Event : std::uint8_t { SBD, B, D, BD, S, SB, SD };
 
+enum class LiftKind : std::uint8_t { Squat, Bench, Deadlift, Total };
+
 enum class Equipment : std::uint8_t {
     Raw,
     Wraps,

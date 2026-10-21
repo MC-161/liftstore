@@ -49,6 +49,8 @@
 // }
 
 
+
+
 int main(int argc, char** argv) {
     // if (argc < 2) { std::fprintf(stderr, "usage: engine <csv>\n"); return 1; }
     if (argc < 2) { std::fprintf(stderr, "usage: engine <csv> [aos|soa]\n"); return 1; }
@@ -131,7 +133,14 @@ int main(int argc, char** argv) {
             } else {
                 std::printf("no data for that group\n");
             }
-        }
+
+            const auto q2 = engine::conditional_percentile(
+    store, engine::Sex::F, engine::Equipment::Raw, engine::Event::SBD,
+    engine::LiftKind::Squat, 300.0f,
+    engine::LiftKind::Bench, 150.0f);
+            std::printf("Q2  M/Raw/SBD  squat 210 +/-%.1f -> bench 140: %.2f%%  (below %zu, n %zu)\n",
+                        q2.tol_used, q2.percentile, q2.below, q2.n);
+            }
 
         return 0;
     }
@@ -142,4 +151,6 @@ int main(int argc, char** argv) {
 
 
 }
+
+
 

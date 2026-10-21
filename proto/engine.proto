@@ -22,7 +22,7 @@ enum Equipment {
     EQUIPMENT_WRAPS = 2;
     EQUIPMENT_SINGLE_PLY = 3;
     EQUIPMENT_MULTI_PLY = 4;
-    EQUIPMENT_UNLIMTED = 5;
+    EQUIPMENT_UNLIMITED = 5;
     EQUIPMENT_STRAPS = 6;
 }
 
@@ -69,4 +69,30 @@ message PercentileResponse {
     uint32 below        = 2;
     uint32 n            = 3;
     string weight_class = 4;
+}
+
+
+enum LiftKind {
+    LIFT_KIND_UNSPECIFIED = 0;
+    LIFT_KIND_SQUAT       = 1;
+    LIFT_KIND_BENCH       = 2;
+    LIFT_KIND_DEADLIFT    = 3;
+    LIFT_KIND_TOTAL       = 4;
+}
+
+message ConditionalPercentileRequest {
+    Sex       sex             = 1;
+    Equipment equipment       = 2;
+    Event     event           = 3;
+    LiftKind  condition_lift  = 4;
+    float     condition_value = 5;
+    LiftKind  target_lift     = 6;
+    float     target_value    = 7;
+}
+
+message ConditionalPercentileResponse {
+    double percentile = 1;
+    uint32 below      = 2;
+    uint32 n          = 3;
+    float  tol_used   = 4;
 }
