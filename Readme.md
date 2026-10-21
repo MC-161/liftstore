@@ -1,189 +1,204 @@
 # liftstore
 
-A columnar query engine over the OpenPowerlifting dataset: 4,032,180 rows,
-42 columns, 786 MB of CSV. Written in C++20 to measure what memory layout is
-actually worth on an analytical workload, against an honest row-oriented
-baseline rather than a strawman.
+**A columnar query engine in C++20 over 4,032,180 powerlifting competition
+results — built to answer one question nobody else answers, in 5 ms.**
 
-## Results
+```
+Among the 38,298 lifters who squat 210 kg,
+your 140 kg bench sits at the 55th percentile.
+```
 
-Query: *top 10 women, raw, full power (SBD), by total, one entry per lifter.*
-Release build (`-O3`), warm page cache, best of 5 runs, MacBook Pro (Apple
-Silicon), macOS 26.6.2.
+Every ranking site tells you where your bench sits among *all* lifters. This
+one tells you where it sits among lifters **who squat what you squat** — the
+comparison that finds your weak lift instead of your training age.
 
-| | Row-oriented (AoS) | Columnar (SoA) | |
-|---|---|---|---|
+It can't be precomputed. The condition is a runtime range over another column,
+so it's a full scan of four million rows — and it returns in single-digit
+milliseconds.
+
+![row-oriented vs columnar: the same query over 4 million rows, 104.9 ms against 5.2 ms](docs/demo.gif)
+
+---
+
+## The numbers
+
+Same query, same machine, same results — one stores rows, one stores columns.
+
+```
+query ── top 10 women, raw, full power, by total, over 4,032,180 rows
+
+  row-oriented  ████████████████████████████████████████  104.9 ms
+  columnar      ██                                          5.2 ms
+
+peak resident memory
+
+  row-oriented  ████████████████████████████████████████  3.07 GB
+  columnar      ███████████████████                       1.49 GB
+
+throughput ── gRPC service, 50 concurrent clients
+
+  1,016 req/s     p50 61 ms     p99 135 ms     0 errors in 30,000
+```
+
+| | row-oriented | columnar | |
+|---|---:|---:|---|
 | **Query** | 101.7 ms | **5.2 ms** | **19.6× faster** |
 | **Peak memory** | 3.07 GB | **1.49 GB** | **2.1× smaller** |
 | Load | 2,500 ms | 3,641 ms | 1.5× slower |
 | System time | 0.71 s | 0.17 s | 4.2× less |
 | Page reclaims | 287,619 | 91,728 | 3.1× fewer |
-| Instructions retired | 38.6 B | 41.3 B | +7% |
+| **Instructions retired** | 38.6 B | **41.3 B** | **+7%** |
 
-Both paths produce byte-identical results on every run.
+> **The last row is the whole story.** The fast version executes *seven percent
+> more instructions* and finishes twenty times sooner. It isn't doing less
+> work — it's waiting on memory far less. Measure instruction counts alone and
+> you'd conclude the rewrite made things worse.
 
-Columnar query breakdown:
+Both paths return byte-identical results on every run. The row-oriented
+implementation is still in the repo, still differentially tested against the
+columnar one — it's the reference, not a strawman.
 
-| Phase | Time | Work |
-|---|---|---|
-| Filter | 5.0 ms | 4,032,180 rows across 4 columns (~24 MB) |
-| Sort | 0.3 ms | `partial_sort` over 375,568 matches |
-| Dedupe | 0.0 ms | hash set of `uint32` name indexes |
+---
 
-The filter reads ~24 MB of packed columns instead of walking 2.13 GB of
-528-byte structs. Adding the other 35 columns after the query columns were
-working changed query time by 0.2 ms, which is the columnar property in a
-single measurement: a column no query reads costs nothing at query time.
+## Why
 
-### Progression
+One `struct Lift` per row is **528 bytes**. A ranking query reads four fields
+out of forty-two, but a CPU fetches whole 64-byte cache lines — so most of
+every line fetched was thrown away.
 
-| Stage | Load | Query | Change |
-|---|---|---|---|
-| Baseline: `std::vector<Lift>` | 5,026 ms | 104.9 ms | — |
-| `reserve()` with known row count | 3,069 ms | 103.4 ms | load −39% |
-| `std::from_chars` parsing | 2,216 ms | 102.2 ms | load −28% |
-| Columnar store + `partial_sort` | 3,641 ms | **5.2 ms** | query −95% |
+```
+row-oriented — one 528-byte struct per lifter
+┌───────────────────────────────────────────────┐
+│ name │ sex │ event │ … 36 more … │ total │ …   │  ← a 64-byte cache line
+└───────────────────────────────────────────────┘     holds ~1/8 of ONE row
+   ▲                                   ▲
+   └──── wanted ────────────────────── ┘    everything between: wasted bandwidth
 
-`reserve()` cut load time 39% while cutting instructions only 4%: the saving
-was allocation and memory traffic, not computation. `from_chars` cut
-instructions 18%: that saving was computation.
+columnar — one contiguous array per field
+  sex     [M][F][M][M][F][M][M][F] …     1 byte each  → 64 per cache line
+  total [759.0][756.5][751.0][743.0]…    4 bytes each → 16 per cache line
+                                         ▲ every byte fetched is a byte used
+```
 
-## Design decisions
+Filtering touches four small arrays instead of striding through 2.13 GB of
+mostly-irrelevant struct. Text columns are dictionary-encoded (24 bytes per row
+→ 2), missing numbers use a NaN sentinel rather than `optional<float>` (4 bytes
+not 8, and NaN compares false so scans skip them branch-free), and dates are
+`YYYYMMDD` integers so range filters stay integer comparisons.
 
-**Table representation — struct of named vectors.** The schema is fixed and
-known at compile time, so direct typed access beats type-erased columns
-(`unique_ptr<Column>`) or `std::variant`, both of which charge indirection on
-every access for runtime flexibility this workload does not need.
+Adding the other 35 columns *after* the query columns were working moved query
+time by **0.2 ms**. That's the columnar property in one measurement: a column
+no query reads costs nothing at query time.
 
-**Missing values — NaN sentinel in packed float arrays.** `optional<float>`
-is 8 bytes, halving cache-line density on the scan path that the rebuild
-exists to optimise. NaN keeps columns at 4 bytes per row, and because every
-comparison against NaN is false, scans skip missing rows with no extra
-branch. Limitation: floats only. Not a constraint here — categories and
-`Place` are never empty, and dictionary indexes reserve 0 for empty. A
-validity bitmap (the Arrow/Parquet approach, 1 bit per row) is the documented
-upgrade path if generic per-column validity is ever needed.
-Consequence: this project must not be built with `-ffast-math`.
+---
 
-**Categoricals — dictionary encoding.** Twelve text columns hold between 8
-and 34,791 distinct values across 4 million rows. Each stores its distinct
-values once and one integer index per row: 24 bytes per row becomes 2 (or 4
-for `Name`, at 1,013,154 distinct values, and `MeetName`, for growth
-headroom). Filters and dedupe become integer comparisons. `TotalKg` is
-deliberately *not* dictionary-encoded despite having only 8,751 distinct
-values — it is the hot scan path, where indirection would cost more than the
-bytes it saves.
-
-**Dates — `YYYYMMDD` integers, not dictionary indexes.** Preserves ordering,
-so range filters are integer comparisons. Trade-off: no date arithmetic
-without conversion.
-
-**Row alignment.** Index *i* is the same row in every column; nothing
-structurally enforces this. All columns are appended in one place and
-`check_invariant()` verifies equal lengths after load.
-
-**Ownership.** `ColumnStore` is non-copyable (`= delete`) so an accidental
-multi-gigabyte copy is a compile error, and explicitly movable so the loader
-can return it by value. `static_assert`s enforce both properties. Returning
-the store triggers no constructor at all under C++17 copy elision.
-
-## Correctness
-
-- The top 10 was reproduced independently by an `awk` pipeline over the raw
-  CSV: identical names and totals. The only divergence was ordering within a
-  692.5 kg tie, which `sort` leaves unspecified and the engine breaks
-  deterministically by name, then date.
-- The leading result was verified row by row against the raw file.
-- Parsers reject any unrecognised value rather than defaulting, and every one
-  of the 4,032,180 rows parses. This caught a value the exploratory shell
-  checks had missed (see below).
-- The `partial_sort` optimisation uses a doubling-`k` retry, so its result is
-  provably identical to a full sort rather than correct only in practice.
-  Verified by forcing `k = 5`.
-- Debug builds run under AddressSanitizer and UndefinedBehaviorSanitizer with
-  no reports, which matters because parsing reads raw buffer bytes through
-  `std::string_view` and `std::from_chars`.
-
-### Ranking rule
-
-Only rows whose `Place` is numeric are ranked. This excludes DQ, NS and DD
-(246,210 / 22,249 / 1,859 rows) and also guest lifters (13,758 rows), who
-have totals but are not officially placed — filtering on "has a total" alone
-would silently include them. Empty `TotalKg` and a DQ/NS/DD code were
-verified to describe exactly the same 270,318 rows, in both directions.
-
-## Dataset notes
-
-Findings that shaped the schema, from `docs/data-notes.md`:
-
-- No quote characters anywhere in the file and exactly 42 fields on every
-  line, so the parser splits on commas with no quote handling.
-- Negative attempt values encode failed attempts; the sign carries meaning.
-- 371 rows have a bare `+` as their weight class, with no number. Missed by
-  the exploratory regex check (`[0-9.]*` matches zero digits) and caught by
-  the parser's fail-loudly rule. Interpreted as an open class.
-- 158,618 rows carry `#N` suffixes disambiguating shared names, so
-  deduplicating by name deduplicates by person.
-- A lifter entering multiple divisions at one meet appears once per division,
-  so counts and averages must account for repeated performances.
-
-## Build
+## Try it
 
 ```bash
+git clone https://github.com/MC-161/liftstore && cd liftstore
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release -j
-./build-release/apps/engine data/openpowerlifting-*.csv [aos|soa]
+
+# a 5,000-row sample is committed — no 786 MB download needed
+./build-release/apps/engine data/sample.csv soa
 ```
 
-Debug builds enable AddressSanitizer and UndefinedBehaviorSanitizer:
+Serve it:
+
+![loading four million rows once at startup, then answering queries in milliseconds](docs/serve.gif)
 
 ```bash
-cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug
-cmake --build build-debug -j
-./build-debug/apps/engine data/dev.csv
+./build-release/apps/engine_server data/openpowerlifting-*.csv
+```
+```
+store ready: 4032180 rows in 3618.2 ms
+percentile index ready: 563 groups in 796.0 ms
+listening on 0.0.0.0:50051
+```
+```bash
+grpcurl -plaintext -import-path proto -proto engine.proto -d @ \
+  localhost:50051 engine.v1.Engine/ConditionalPercentile < docs/query.json
+```
+```json
+{ "percentile": 55.04, "below": 21079, "n": 38298, "tolUsed": 2.5 }
 ```
 
-Google Test and Google Benchmark are fetched at configure time and pinned by
-tag. The dataset is not committed; download the bulk CSV from
-openpowerlifting.org into `data/`.
+> `n` comes back with every percentile. A percentile over five people isn't
+> wrong, it's *meaningless*, and only `n` tells you which one you're looking at.
 
-## Layout
+Full dataset: the bulk CSV from
+[openpowerlifting.org/data](https://openpowerlifting.org/data), into `data/`.
+Debug builds run under AddressSanitizer and UndefinedBehaviorSanitizer.
+
+---
+
+## How it's verified
+
+Every number this engine produces was reconciled **exactly** — identical
+integers, not "looks about right" — against an independent `awk` pass over the
+same CSV.
+
+```bash
+awk -F, 'NR>1 && $2=="M" && $4=="Raw" && $3=="SBD" && $27~/^[0-9]+$/ \
+  && $15!="" && $15>=207.5 && $15<=212.5 && $20!="" \
+  { n++; if ($20 < 140) b++ } END { print "below="b"  n="n }'
+# below=21079  n=38298       ← the engine returns the same two integers
+```
+
+Because of the **failure mode**: an off-by-one in an enum mapping doesn't
+crash, it returns ten real lifters with real totals in descending order, and
+they're the wrong ten. Only comparison against an independently derived answer
+catches that.
+
+Those reconciliations are pinned as tests, each carrying the `awk` command that
+produced its expected value — so no constant in the suite is magic.
+
+```bash
+ctest --test-dir build-release --output-on-failure
+```
+
+Also checked, because a smoke test wouldn't be: exact agreement with the
+row-oriented baseline · prefix invariance (`limit=10` equals the first 10 of
+`limit=200`, which fails the instant ordering isn't total) · the rare widening
+branch, forced by a cohort of 5.
+
+---
+
+## Stack
+
+C++20 · CMake · gRPC + protobuf · GoogleTest · Google Benchmark ·
+ASan/UBSan/TSan · `ghz`
 
 ```
 include/engine/   public headers
-src/              engine_core: parsing, file buffer, column store, queries
-apps/             CLI entry point
-tests/            GoogleTest
-bench/            Google Benchmark
-docs/             data notes, benchmark log, decision records
+src/              engine_core — parsing, column store, queries, indexes
+service/          gRPC adapter (proto types in, domain types out)
+proto/            engine.proto + generated code
+apps/             CLI and server
+tests/            reference tests, each citing its awk command
+bench/            micro-benchmarks
+docs/             demo tapes — every GIF regenerable with `vhs docs/*.tape`
 ```
 
-## What I got wrong
+`engine_core` knows nothing about gRPC — which is why the translation layer is
+its own target, testable without starting a server. The store and index are
+built **completely before** the server listens, which is what makes concurrent
+reads safe without a mutex: not the `const` keywords, but the fact that every
+write happens before any reader exists.
 
-**Predicted the wrong bottleneck in the parser.** Expected `std::string`
-construction to dominate load time; measured, it was 11%, while number
-conversion was 58%. Short string optimisation means most text fields never
-allocate. Phase decomposition found this; intuition would not have.
+---
 
-**Predicted 40 ms for the columnar query; got 5.2 ms.** Two errors in
-opposite directions. The layout win was larger than estimated, and the sort
-was treated as an unavoidable floor when it was simply the wrong algorithm:
-ordering 375,568 elements to return 10. Replacing `std::sort` with
-`std::partial_sort` took the sort from 68.8 ms to 0.3 ms — a bigger win than
-the layout change itself, and one that was available in the baseline too.
+## Status
 
-**A measurement that reported zero.** An early instrumented run showed string
-construction costing nothing, which is impossible. Cross-checking against
-instruction counts revealed the "strings-off" code path was still assigning
-strings. A component measured at zero cost is a broken experiment, not a
-finding.
+| | |
+|---|---|
+| ✅ | columnar store · dictionary encoding · percentile index |
+| ✅ | conditional percentile — the hero query — verified three ways |
+| ✅ | gRPC service, load-tested |
+| 🔨 | distribution · nearest · class sweep · trends |
+| 🔨 | Go API service |
+| 📋 | frontend — specified, not yet built |
 
-**Strict parsing is not validation.** The field parsers reject anything they
-cannot parse, which caught a weight class recorded as a bare `+` (371 rows)
-that an exploratory regex had missed. But they accepted `-74` without
-complaint and stored a negative weight class, because `-74` is a perfectly
-valid number — it is just not a plausible one. 25 rows carried that European
-"up to 74 kg" notation. Parse validity and value plausibility are separate
-checks, and only the first was being done; range checks now sit alongside the
-parsers.
+---
 
+Data from [OpenPowerlifting](https://openpowerlifting.org), public domain.
