@@ -1,4 +1,4 @@
-# liftstore
+<img width="1983" height="793" alt="Liftstore_ Columnar Queries in 5 ms" src="https://github.com/user-attachments/assets/c103b942-d8e2-4880-9c82-190723ef6fbd" />
 
 **A columnar query engine in C++20 over 4,032,180 powerlifting competition
 results — built to answer one question nobody else answers, in 5 ms.**
