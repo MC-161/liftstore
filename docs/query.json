@@ -1,0 +1,9 @@
+{
+  "sex": "SEX_M",
+  "equipment": "EQUIPMENT_RAW",
+  "event": "EVENT_SBD",
+  "conditionLift": "LIFT_KIND_SQUAT",
+  "conditionValue": 210,
+  "targetLift": "LIFT_KIND_BENCH",
+  "targetValue": 140
+}
