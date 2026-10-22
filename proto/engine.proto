@@ -61,15 +61,25 @@ message PercentileRequest{
     Equipment equipment = 2;
     Event event = 3;
     float bodyweight = 4;
-    float total = 5;
+    float value = 5;
+    LiftKind lift = 6;
+}
+
+message Neighbour {
+    string name  = 1;
+    float  value = 2;
 }
 
 message PercentileResponse {
     double percentile   = 1;
     uint32 below        = 2;
-    uint32 n            = 3;
-    string weight_class = 4;
+    uint32 rank         = 3;
+    uint32 n            = 4;
+    string weight_class = 5;
+    repeated Neighbour neighbours = 6;
 }
+
+
 
 
 enum LiftKind {

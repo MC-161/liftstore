@@ -121,15 +121,36 @@ int main(int argc, char** argv) {
                         pt.ms(), pct.group_count(), pct.total_values(),
                         pct.bytes() / 1048576.0);
 
+            const auto show = [&](const char* label, float v, std::size_t k) {
+                const auto nr = pct.nearest(engine::Sex::F, engine::Equipment::Raw,
+                                            engine::Event::SBD, 4,
+                                            engine::LiftKind::Total, v, k, store.name);
+                std::printf("%-22s found=%d  n=%zu  returned=%zu\n",
+                            label, nr.found, nr.n, nr.neighbours.size());
+                for (const auto& nb : nr.neighbours) {
+                    const auto name = store.name_dict.value(store.name[nb.row]);
+                    std::printf("    %8.1f  %.*s\n", nb.value,
+                                static_cast<int>(name.size()), name.data());
+                }
+            };
+
+            show("normal (500)",    500.0f, 5);
+            show("below min (0)",     0.0f, 5);
+            show("above max (9999)",9999.0f, 5);
+
             // Women, Raw, full power, 63 kg class (index 4), 500 kg total.
             engine::Timer qt;
             engine::PercentileResult r = pct.percentile_of(
-                engine::Sex::F, engine::Equipment::Raw, engine::Event::SBD, 4, 500.0f);
+                engine::Sex::F, engine::Equipment::Raw, engine::Event::SBD, 4,engine::LiftKind::Total , 500.0f);
             const double q_us = qt.ms() * 1000.0;
+            engine::DistributionResult dr = pct.distribution(engine::Sex::F, engine::Equipment::Raw, engine::Event::SBD, 4, engine::LiftKind::Total);
 
             if (r.found) {
                 std::printf("500.0 kg, F Raw SBD 63kg: %.2f%%  (%zu below, n=%zu)  %.1f us\n",
                             r.percentile, r.below, r.n, q_us);
+            if(dr.found) {
+                std::printf("F Raw SBD 63kg  distribution: n=%zu  mean=%.3f  sd=%.4f\n",dr.n, dr.mean, dr.sd);
+            }
             } else {
                 std::printf("no data for that group\n");
             }
@@ -141,6 +162,9 @@ int main(int argc, char** argv) {
             std::printf("Q2  M/Raw/SBD  squat 210 +/-%.1f -> bench 140: %.2f%%  (below %zu, n %zu)\n",
                         q2.tol_used, q2.percentile, q2.below, q2.n);
             }
+
+
+
 
         return 0;
     }

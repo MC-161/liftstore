@@ -46,6 +46,7 @@ namespace engine {
 std::optional<Sex>       from_proto(v1::Sex s);
 std::optional<Equipment> from_proto(v1::Equipment e);
 std::optional<Event>     from_proto(v1::Event e);
+std::optional<LiftKind> from_proto(v1::LiftKind l);
 
 // 0 means "unset" -> kDefaultLimit. Over kMaxLimit is an
 // error, not a clamp. kDefaultLimit matches top_lifters_columnar's
@@ -54,6 +55,7 @@ std::optional<Event>     from_proto(v1::Event e);
 // size divided by ~100 B per LifterResult.
 inline constexpr std::uint32_t kDefaultLimit = 200;
 inline constexpr std::uint32_t kMaxLimit     = 30000;
+inline constexpr std::size_t kNeighbourCount = 5;
 
 // nullopt => requested exceeds kMaxLimit.
 std::optional<std::uint32_t> resolve_limit(std::uint32_t requested);

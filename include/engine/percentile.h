@@ -16,10 +16,26 @@ namespace engine {
 struct PercentileResult {
     bool found = false;          // false = no such group, or unassignable input
     double percentile = 0.0;     // 0-100: share of the group strictly below
+    std::size_t rank = 0;
     std::size_t below = 0;       // count strictly below the query value
     std::size_t n = 0;           // group size
 };
 
+struct DistributionResult {
+    bool        found = false;
+    std::size_t n     = 0;
+    double      mean  = 0.0;
+    double      sd    = 0.0;
+    // bins + sigma marks come next
+};
+
+struct Neighbour { std::uint32_t row; float value; };
+
+struct NearestResult {
+    bool                   found = false;
+    std::size_t            n     = 0;
+    std::vector<Neighbour> neighbours;
+};
 
 
 struct Entry      { float value; std::uint32_t row; };
@@ -44,7 +60,15 @@ public:
     // Percentile = (count strictly below) / (group size), no interpolation.
     // The simplest definition to state, and the least misleading on small samples
     PercentileResult percentile_of(Sex sex, Equipment equipment, Event event,
-                                   std::uint8_t ipf_class, float total_kg) const;
+                                   std::uint8_t ipf_class, LiftKind, float value) const;
+
+
+    DistributionResult distribution(Sex, Equipment, Event,
+                                std::uint8_t ipf_class, LiftKind) const;
+
+    NearestResult nearest(Sex, Equipment, Event, std::uint8_t ipf_class,
+                      LiftKind which, float value, std::size_t k, const std::vector<std::uint32_t>& names) const;
+
 
 
     std::size_t group_count() const;    // groups with at least one value
@@ -66,6 +90,10 @@ private:
 
     static std::size_t slot_of(Sex sex, Equipment equipment, Event event,
                                std::uint8_t ipf_class);
+
+    // nullptr when there is no such slot or the group is empty.
+    const LiftIndex* find_index(Sex, Equipment, Event,
+                                std::uint8_t ipf_class, LiftKind) const;
 
     std::vector<GroupIndex> groups_;   // kSlots entries, most small
 

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <numeric>
+#include<unordered_set>
 
 namespace engine {
 namespace {
@@ -35,23 +37,68 @@ const LiftIndex& lift_of(const GroupIndex& g, LiftKind w) {
     return g.total;
 }
 
+std::size_t count_below(const LiftIndex& li, float value) {
+
+    const auto it = std::lower_bound(li.sorted.begin(), li.sorted.end(), value,
+                                 [](const Entry& e, float v) { return e.value < v; });
+    return static_cast<std::size_t>(it - li.sorted.begin());
+}
+
+std::size_t count_at_or_below(const LiftIndex& li, float value) {
+    const auto it = std::upper_bound(li.sorted.begin(), li.sorted.end(), value,
+                                 [](float v, const Entry& e) { return v < e.value; });
+    return static_cast<std::size_t>(it - li.sorted.begin());
+}
 
 
 constexpr LiftKind kLifts[4] = { LiftKind::Squat, LiftKind::Bench, LiftKind::Deadlift, LiftKind::Total };
 
 // Ascending by value; ties broken by row so the index is identical across
-// runs. Without the tie-break, Q5 "nearest lifters" shows an arbitrary one of
+// runs. Without the tie-break, "nearest lifters" shows an arbitrary one of
 // several tied lifters, and a different one after every rebuild.
-// Step 4 will compute mean/sd here -- one walk, one place.
 void sort_lift(LiftIndex& li) {
     std::sort(li.sorted.begin(), li.sorted.end(),
               [](const Entry& a, const Entry& b) {
                   if (a.value != b.value) { return a.value < b.value; }
                   return a.row < b.row;
               });
+
+    if (!li.sorted.empty()) {
+        // Calculate mean
+        double sum = std::accumulate(li.sorted.begin(), li.sorted.end(), 0.0,
+                [](double acc, const Entry& e) { return acc + e.value; });
+        li.mean = sum / li.sorted.size();
+
+        //  Calculate sum of squared differences
+        double mean = li.mean;
+        double ss = 0.0;
+        for (const auto& e : li.sorted) {
+            double diff = e.value - mean ;
+            ss += diff * diff;
+        }
+
+        // Calculate standard deviation (using population variance: size)
+
+        li.sd = std::sqrt(ss / li.sorted.size());
+    }
+
 }
 
 }  // namespace
+
+
+const LiftIndex *PercentileIndex::find_index(Sex sex, Equipment equipment, Event event, std::uint8_t ipf_class, LiftKind which) const {
+
+    const std::size_t slot = slot_of(sex, equipment, event, ipf_class);   // size_t
+    if (slot == kNoSlot) { return nullptr; }                              // nullptr
+
+    const LiftIndex& li = lift_of(groups_[slot], which);
+    if (li.sorted.empty()) { return nullptr; }
+
+    return &li;
+
+}
+
 
 
 std::size_t PercentileIndex::slot_of(Sex sex, Equipment equipment, Event event,
@@ -129,25 +176,118 @@ PercentileIndex::PercentileIndex(const ColumnStore& store)
 // The simplest definition to state, and the least misleading on small samples.
 PercentileResult PercentileIndex::percentile_of(Sex sex, Equipment equipment,
                                                 Event event,
-                                                std::uint8_t ipf_class,
-                                                float total_kg) const {
+                                                std::uint8_t ipf_class, LiftKind which,
+                                                float value) const {
     PercentileResult r;
 
-    const std::size_t slot = slot_of(sex, equipment, event, ipf_class);
-    if (slot == kNoSlot) { return r; }
+    const LiftIndex* li = find_index(sex, equipment, event, ipf_class, which);
+    if (li == nullptr) { return r; }        // found stays false
 
-    const std::vector<Entry>& g = groups_[slot].total.sorted;
-    if (g.empty()) { return r; }
-
-    const auto it = std::lower_bound(g.begin(), g.end(), total_kg,
-                                     [](const Entry& e, float v) { return e.value < v; });
-
-    r.below      = static_cast<std::size_t>(it - g.begin());
-    r.n          = g.size();
+    r.below      = count_below(*li, value);
+    r.n          = li->sorted.size();
+    if (r.n == 0){return r;}
+    r.rank       = r.n - count_at_or_below(*li, value) + 1;
     r.percentile = 100.0 * static_cast<double>(r.below) / static_cast<double>(r.n);
     r.found      = true;
     return r;
 }
+
+
+    DistributionResult PercentileIndex::distribution(
+            Sex sex, Equipment equipment, Event event,
+            std::uint8_t ipf_class, LiftKind which) const {
+
+    DistributionResult r;
+
+   const LiftIndex* li = find_index(sex, equipment,event,ipf_class,which);
+    if (li == nullptr) { return r; }
+
+
+    r.n     = li->sorted.size();
+    r.mean  = li->mean;
+    r.sd    = li->sd;
+    r.found = true;
+    return r;
+
+}
+
+NearestResult PercentileIndex::nearest(Sex sex, Equipment equipment, Event event,
+                                       std::uint8_t ipf_class, LiftKind which,
+                                       float value, std::size_t k,
+                                       const std::vector<std::uint32_t>& names) const {
+    NearestResult r;
+
+    const LiftIndex* li = find_index(sex, equipment, event, ipf_class, which);
+    if (li == nullptr) { return r; }
+
+    const std::size_t n = li->sorted.size();
+    r.n     = n;          // the GROUP size, not neighbours.size()
+    r.found = true;       // the group EXISTS even if it is empty -- your own rule
+    if (n == 0 || k == 0) { return r; }
+
+    // First index whose value is >= `value`; everything below it is strictly less.
+    const std::size_t pos = count_below(*li, value);
+
+    const std::size_t want_below = k / 2;
+    const std::size_t want_above = k - want_below;   // k=5 -> 2 below, 3 above
+
+    // One lifter can own rows on BOTH sides (a 495 and a 505), so `seen` is
+    // shared across all three phases. insert().second is the test and the
+    // insert in a single hash lookup.
+    std::unordered_set<std::uint32_t> seen;
+    std::vector<Neighbour> below;   // collected walking DOWN -> descending
+    std::vector<Neighbour> above;   // collected walking UP   -> ascending
+    below.reserve(want_below);
+    above.reserve(want_above);
+
+    const auto try_take = [&](std::size_t idx, std::vector<Neighbour>& out) {
+        const Entry& e = li->sorted[idx];
+        // sorted position -> row -> name index. Dropping a step here is the
+        // bug that makes `seen` never fire.
+        if (seen.insert(names[e.row]).second) { out.push_back({e.row, e.value}); }
+    };
+
+    // Phase 1: down from pos. `--i` INSIDE `while (i > 0)` is the underflow
+    // guard: `for (i = pos - 1; i >= 0; --i)` on a size_t never terminates, and
+    // pos - 1 at pos == 0 wraps to ~1.8e19 and indexes into orbit.
+    std::size_t i = pos;
+    while (i > 0 && below.size() < want_below) {
+        --i;
+        try_take(i, below);
+    }
+
+    // Phase 2: up from pos. sorted[pos] is at-or-above `value`, so pos itself
+    // is included.
+    std::size_t j = pos;
+    while (j < n && above.size() < want_above) {
+        try_take(j, above);
+        ++j;
+    }
+
+    // Phase 3: either side can run out before filling its quota -- query 70.0
+    // and there is nothing below, query 582.5 and there is nothing above. Top
+    // up from whichever side still has rows. BOTH halves are required.
+    while (i > 0 && below.size() + above.size() < k) {
+        --i;
+        try_take(i, below);
+    }
+    while (j < n && below.size() + above.size() < k) {
+        try_take(j, above);
+        ++j;
+    }
+
+    // `below` is descending because we walked downward. Reverse before joining
+    // or the result is not sorted -- and it looks *almost* right, which is worse.
+    std::reverse(below.begin(), below.end());
+
+    r.neighbours.reserve(below.size() + above.size());
+    r.neighbours.insert(r.neighbours.end(), below.begin(), below.end());
+    r.neighbours.insert(r.neighbours.end(), above.begin(), above.end());
+
+    return r;
+}
+
+
 
 
 std::size_t PercentileIndex::group_count() const {

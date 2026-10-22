@@ -74,6 +74,18 @@ namespace  engine {
         }
     }
 
+    std::optional<LiftKind> from_proto(v1::LiftKind l) {
+        switch (l) {
+            case v1::LIFT_KIND_SQUAT:    return LiftKind::Squat;
+            case v1::LIFT_KIND_BENCH:    return LiftKind::Bench;
+            case v1::LIFT_KIND_DEADLIFT: return LiftKind::Deadlift;
+            case v1::LIFT_KIND_TOTAL:    return LiftKind::Total;
+            case v1::LIFT_KIND_UNSPECIFIED:
+                default:
+                    return std::nullopt;
+        }
+    }
+
 
 
     grpc::Status EngineService::TopLifters(grpc::ServerContext*, const v1::TopLiftersRequest *request, v1::TopLiftersResponse *response) {
@@ -149,6 +161,11 @@ namespace  engine {
             return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
                                 "event is required (got EVENT_UNSPECIFIED)");
         }
+        const auto lift = from_proto(request->lift());
+        if (!lift) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "lift is required (got LIFT_KIND_UNSPECIFIED)");
+        }
 
 
         if (!(request->bodyweight() > 0.0f) || request->bodyweight() > 1000.0f) {
@@ -156,18 +173,31 @@ namespace  engine {
                                 "bodyweight must be between 0 and 1000 kg");
         }
 
-        if (!(request->total() > 0.0f) || request->total() > 2000.0f) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                "total must be between 0 and 2000 kg");
+        const float value = request->value();
+        if (!(value > 0.0f) || value > 2000.0f) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,"value must be between 0 and 2000 kg");
         }
 
         const std::uint8_t cls = ipf_class_index(*sex, request->bodyweight());
 
+        const NearestResult near = index_.nearest(*sex, *equipment, *event, cls, *lift,
+                                              value, kNeighbourCount, store_.name);
+        for (const Neighbour& nb : near.neighbours) {
+            v1::Neighbour* out = response->add_neighbours();
+            out->set_name(store_.name_dict.value(store_.name[nb.row]));
+            out->set_value(nb.value);
+        }
+
+        std::fprintf(stderr, "[dbg] k=%zu near.found=%d near.n=%zu got=%zu\n",
+                 kNeighbourCount, static_cast<int>(near.found),
+                 near.n, near.neighbours.size());
+
         const PercentileResult res =
-            index_.percentile_of(*sex, *equipment, *event, cls, request->total());
+            index_.percentile_of(*sex, *equipment, *event, cls , *lift, value);
 
         response->set_percentile(res.percentile);
         response->set_below(static_cast<std::uint32_t>(res.below));   // size_t -> uint32
+        response->set_rank(static_cast<std::uint32_t>(res.rank));
         response->set_n(static_cast<std::uint32_t>(res.n));
         response->set_weight_class(ipf_class_name(*sex, cls));
 

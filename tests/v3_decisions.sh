@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# V3 of the M6 verification plan + the V1 checks that need no CLI reference.
+# V3 of the M6 verification plan, plus the V1 and per-lift checks that need
+# no CLI reference.
+#
 # Usage: bash tests/v3_decisions.sh [host:port]      (run from the repo root)
 # Requires: grpcurl, jq. Server loaded with the FULL dataset.
 
 set -u
 ADDR="${1:-localhost:50051}"
 PASS=0; FAIL=0
+
+# Must track kMaxLimit in include/engine/service.h.
+CAP=30000
 
 G() {
   grpcurl -plaintext -emit-defaults -max-time 60 \
@@ -44,7 +49,10 @@ expect_jq() {
 
 TL=engine.v1.Engine/TopLifters
 PC=engine.v1.Engine/Percentile
+
 FILT='"sex":"SEX_F","equipment":"EQUIPMENT_RAW","event":"EVENT_SBD"'
+PFILT='"sex":"SEX_F","equipment":"EQUIPMENT_RAW","event":"EVENT_SBD","lift":"LIFT_KIND_TOTAL"'
+SQ='"sex":"SEX_F","equipment":"EQUIPMENT_RAW","event":"EVENT_SBD","lift":"LIFT_KIND_SQUAT"'
 
 echo
 echo "Decision 2 - unspecified enums rejected, naming the right field"
@@ -54,30 +62,48 @@ expect_err "event omitted"     $TL '{"sex":"SEX_F","equipment":"EQUIPMENT_RAW"}'
 
 echo
 echo "Decision 3 - limit 0 means default; cap inclusive; over-cap is an error"
-expect_jq  "limit omitted -> 200"     $TL "{$FILT}"                 '.results|length' 200
-expect_jq  "limit 1 -> 1"             $TL "{$FILT,\"limit\":1}"     '.results|length' 1
-expect_ok  "limit at cap accepted"    $TL "{$FILT,\"limit\":10000}"
-expect_err "limit over cap rejected"  $TL "{$FILT,\"limit\":30001}" 30001 30000
-expect_err "limit far over rejected"  $TL "{$FILT,\"limit\":50000}" 50000 30000
+expect_jq  "limit omitted -> 200"    $TL "{$FILT}"               '.results|length' 200
+expect_jq  "limit 1 -> 1"            $TL "{$FILT,\"limit\":1}"   '.results|length' 1
+
+# results, past grpcurl's default 4 MB receive limit, so the cap as configured
+# is larger than a default client can accept. Either lower kMaxLimit below
+# ~20000, or raise the limit here and in the Go service.
+expect_ok  "large limit accepted"    $TL "{$FILT,\"limit\":10000}"
+expect_err "limit over cap rejected" $TL "{$FILT,\"limit\":$((CAP+1))}" "$((CAP+1))" "$CAP"
+expect_err "limit far over rejected" $TL "{$FILT,\"limit\":50000}"      50000        "$CAP"
 
 echo
 echo "Decision 4 - empty group is OK with n=0, class still named"
 expect_jq "unassignable (Mx) -> n=0" $PC \
-  '{"sex":"SEX_MX","equipment":"EQUIPMENT_RAW","event":"EVENT_SBD","bodyweight":75,"total":500}' \
+  '{"sex":"SEX_MX","equipment":"EQUIPMENT_RAW","event":"EVENT_SBD","lift":"LIFT_KIND_TOTAL","bodyweight":75,"value":500}' \
   '.n' 0
 expect_jq "empty group -> n=0" $PC \
-  '{"sex":"SEX_F","equipment":"EQUIPMENT_STRAPS","event":"EVENT_SD","bodyweight":63,"total":300}' \
+  '{"sex":"SEX_F","equipment":"EQUIPMENT_STRAPS","event":"EVENT_SD","lift":"LIFT_KIND_TOTAL","bodyweight":63,"value":300}' \
   '.n' 0
 expect_jq "empty group still names the class" $PC \
-  '{"sex":"SEX_F","equipment":"EQUIPMENT_STRAPS","event":"EVENT_SD","bodyweight":63,"total":300}' \
+  '{"sex":"SEX_F","equipment":"EQUIPMENT_STRAPS","event":"EVENT_SD","lift":"LIFT_KIND_TOTAL","bodyweight":63,"value":300}' \
   '.weightClass != ""' true
 
 echo
 echo "Scalar guards - 0.0 is proto3's default, so omitted must not mean valid"
-expect_err "bodyweight omitted" $PC "{$FILT,\"total\":500}"                   bodyweight
-expect_err "total omitted"      $PC "{$FILT,\"bodyweight\":63}"               total
-expect_err "bodyweight 0"       $PC "{$FILT,\"bodyweight\":0,\"total\":500}"  bodyweight
-expect_err "total 0"            $PC "{$FILT,\"bodyweight\":63,\"total\":0}"   total
+# Each case supplies everything valid EXCEPT the field under test. Without
+# that, validation ORDER silently decides which assertion actually fires --
+# a request missing both lift and bodyweight only ever reports lift.
+expect_err "lift omitted"       $PC "{$FILT,\"bodyweight\":63,\"value\":500}"   lift
+expect_err "bodyweight omitted" $PC "{$PFILT,\"value\":500}"                    bodyweight
+expect_err "value omitted"      $PC "{$PFILT,\"bodyweight\":63}"                value
+expect_err "bodyweight 0"       $PC "{$PFILT,\"bodyweight\":0,\"value\":500}"   bodyweight
+expect_err "value 0"            $PC "{$PFILT,\"bodyweight\":63,\"value\":0}"    value
+
+echo
+echo "Per-lift percentile - reconciled against awk (docs/data-notes.md)"
+# F/Raw/SBD, 63 kg class (57 < bw <= 63). The two arrays have DIFFERENT sizes,
+# which is what makes these a tripwire: a server reading .total when asked for
+# .squat returns n=65964 instead of 65949 even before the value is wrong.
+expect_jq "total 500: below" $PC "{$PFILT,\"bodyweight\":60,\"value\":500}" '.below' 65810
+expect_jq "total 500: n"     $PC "{$PFILT,\"bodyweight\":60,\"value\":500}" '.n'     65964
+expect_jq "squat 150: below" $PC "{$SQ,\"bodyweight\":60,\"value\":150}"    '.below' 62402
+expect_jq "squat 150: n"     $PC "{$SQ,\"bodyweight\":60,\"value\":150}"    '.n'     65949
 
 echo
 echo "V1 leftovers"
