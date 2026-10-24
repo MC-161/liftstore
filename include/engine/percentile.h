@@ -26,6 +26,8 @@ struct DistributionResult {
     std::size_t n     = 0;
     double      mean  = 0.0;
     double      sd    = 0.0;
+    float min = 0.0f;
+    float max = 0.0f;
     // bins + sigma marks come next
 };
 
@@ -35,6 +37,16 @@ struct NearestResult {
     bool                   found = false;
     std::size_t            n     = 0;
     std::vector<Neighbour> neighbours;
+};
+
+
+struct HistogramResult {
+    bool   found = false;
+    std::size_t n = 0;
+    double mean = 0.0, sd = 0.0;
+    float  min = 0.0f, max = 0.0f;
+    float  bin_width = 0.0f;
+    std::vector<HistBin> bins;
 };
 
 
@@ -69,6 +81,9 @@ public:
     NearestResult nearest(Sex, Equipment, Event, std::uint8_t ipf_class,
                       LiftKind which, float value, std::size_t k, const std::vector<std::uint32_t>& names) const;
 
+    HistogramResult histogram(Sex sex, Equipment equipment, Event event,
+                          std::uint8_t ipf_class, LiftKind which,
+                          float bin_width) const;
 
 
     std::size_t group_count() const;    // groups with at least one value

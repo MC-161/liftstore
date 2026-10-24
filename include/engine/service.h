@@ -56,7 +56,31 @@ std::optional<LiftKind> from_proto(v1::LiftKind l);
 inline constexpr std::uint32_t kDefaultLimit = 200;
 inline constexpr std::uint32_t kMaxLimit     = 30000;
 inline constexpr std::size_t kNeighbourCount = 5;
+inline constexpr float       kDefaultBinWidth = 10.0f;
+inline constexpr std::size_t kMaxBins         = 500;
+inline constexpr float       kIpfClassCount = 9;
+inline constexpr float kDefaultJumpBinWidth = 2.5f;
+inline constexpr std::uint32_t kMinYear = 1950;
+inline constexpr std::uint32_t kMaxYear = 2100;
+inline constexpr std::uint32_t kDefaultClassDeltaBinWidth = 5.0f;
 
+struct BinWidth {
+    float       width = 0.0f;
+    std::size_t bins  = 0;
+    bool        ok    = false;
+};
+
+
+struct YearRange {
+    std::uint32_t start = 0;
+    std::uint32_t end   = 0;
+    bool          ok    = false;
+};
+
+
+YearRange resolve_years(std::uint32_t start, std::uint32_t end);
+
+BinWidth resolve_bin_width(float requested, float min, float max);
 // nullopt => requested exceeds kMaxLimit.
 std::optional<std::uint32_t> resolve_limit(std::uint32_t requested);
 
@@ -103,6 +127,34 @@ public:
     grpc::Status Percentile(grpc::ServerContext* context,
                             const v1::PercentileRequest* request,
                             v1::PercentileResponse* response) override;
+
+    grpc::Status Distribution(grpc::ServerContext*,
+                          const v1::DistributionRequest*,
+                          v1::DistributionResponse*) override;
+
+    grpc::Status ClassSweep(grpc::ServerContext*,
+                            const v1::ClassSweepRequest*,
+                            v1::ClassSweepResponse*) override;
+
+    grpc::Status ClassTrend(grpc::ServerContext*,
+                            const v1::ClassTrendRequest*,
+                            v1::ClassTrendResponse*) override;
+
+    grpc::Status EquipmentSwap(grpc::ServerContext*,
+                               const v1::EquipmentSwapRequest*,
+                               v1::EquipmentSwapResponse*) override;
+
+    grpc::Status ClassChange(grpc::ServerContext*,
+                             const v1::ClassChangeRequest*,
+                             v1::ClassChangeResponse*) override;
+
+    grpc::Status Attempts(grpc::ServerContext*,
+                          const v1::AttemptsRequest*,
+                          v1::AttemptsResponse*) override;
+
+    grpc::Status ConditionalPercentile(grpc::ServerContext*,
+                                   const v1::ConditionalPercentileRequest*,
+                                   v1::ConditionalPercentileResponse*) override;
 
 
 

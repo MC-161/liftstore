@@ -7,6 +7,13 @@ option go_package = "github.com/MC-161/liftstore/gen/engine/v1;enginev1";
 service Engine {
     rpc TopLifters (TopLiftersRequest) returns (TopLiftersResponse);
     rpc Percentile (PercentileRequest) returns (PercentileResponse);
+    rpc ConditionalPercentile (ConditionalPercentileRequest) returns (ConditionalPercentileResponse);
+    rpc Distribution   (DistributionRequest)   returns (DistributionResponse);
+    rpc ClassSweep     (ClassSweepRequest)     returns (ClassSweepResponse);
+    rpc ClassTrend     (ClassTrendRequest)     returns (ClassTrendResponse);
+    rpc EquipmentSwap  (EquipmentSwapRequest)  returns (EquipmentSwapResponse);
+    rpc ClassChange    (ClassChangeRequest)    returns (ClassChangeResponse);
+    rpc Attempts       (AttemptsRequest)       returns (AttemptsResponse);
 }
 
 enum Sex {
@@ -106,3 +113,148 @@ message ConditionalPercentileResponse {
     uint32 n          = 3;
     float  tol_used   = 4;
 }
+
+
+// ---------- shared ----------
+
+message GroupKey {
+    Sex       sex       = 1;
+    Equipment equipment = 2;
+    Event     event     = 3;
+    uint32    ipf_class = 4;      // the INDEX, not the kg label
+}
+
+message GroupSummary {
+    GroupKey key          = 1;
+    string   weight_class = 2;    // the label, e.g. "63"
+    uint32   n            = 3;    // 0 is a valid, returned answer
+    float    mean         = 4;
+    float    sd           = 5;
+}
+
+message Bin {
+    float  low   = 1;             // [low, high)  -- half-open, everywhere
+    float  high  = 2;
+    uint32 count = 3;
+}
+
+message SigmaMark {
+    int32 k        = 1;           // -2, -1, 0, +1, +2
+    float value    = 2;           // mean + k*sd
+    bool  in_range = 3;           // false when it falls outside [min, max]
+}
+
+// ---------- Q4 ----------
+
+message DistributionRequest {
+    GroupKey key       = 1;
+    LiftKind lift      = 2;
+    float    bin_width = 3;       // 0 => server default
+}
+
+message DistributionResponse {
+    GroupSummary       summary     = 1;
+    repeated Bin       bins        = 2;
+    repeated SigmaMark sigma_marks = 3;
+    float              min         = 4;
+    float              max         = 5;
+    float              bin_width   = 6;   // what the server actually used
+}
+
+// ---------- Q6 ----------
+
+message ClassSweepRequest {
+    Sex       sex       = 1;
+    Equipment equipment = 2;
+    Event     event     = 3;
+    LiftKind  lift      = 4;
+    float     value     = 5;      // 0 => no percentile column
+}
+
+message ClassSweepRow {
+    GroupSummary summary        = 1;
+    double        percentile     = 2;
+    bool         has_percentile = 3;
+}
+
+message ClassSweepResponse {
+    repeated ClassSweepRow rows = 1;
+}
+
+// ---------- Q11 ----------
+
+message ClassTrendRequest {
+    GroupKey key        = 1;
+    LiftKind lift       = 2;
+    uint32   start_year = 3;
+    uint32   end_year   = 4;
+}
+
+message ClassTrendRow {
+    uint32 year = 1;
+    uint32 n    = 2;
+    float  mean = 3;
+    float  sd   = 4;
+    float  p50  = 5;
+    float  p90  = 6;
+}
+
+message ClassTrendResponse {
+    repeated ClassTrendRow rows = 1;
+}
+
+// ---------- Q10 ----------
+
+message EquipmentSwapRequest {
+    Sex       sex       = 1;
+    Event     event     = 2;
+    Equipment from_equipment      = 3;
+    Equipment to_equipment        = 4;
+    LiftKind  lift      = 5;
+    uint32    ipf_class = 6;
+}
+
+message EquipmentSwapResponse {
+    uint32       lifters      = 1;   // distinct lifters with results in BOTH
+    float        mean_delta   = 2;
+    float        sd_delta     = 3;
+    float        median_delta = 4;
+    GroupSummary from_summary = 5;
+    GroupSummary to_summary   = 6;
+}
+
+// ---------- Q7 ----------
+
+message ClassChangeRequest {
+    Sex       sex         = 1;
+    Equipment equipment   = 2;
+    Event     event       = 3;
+    int32     class_delta = 4;       // +1 moved up one class, -1 down
+}
+
+message ClassChangeResponse {
+    uint32       lifters          = 1;   // DISTINCT lifters contributing
+    float        mean_total_delta = 2;
+    float        sd_total_delta   = 3;
+    uint32       improved         = 4;
+    repeated Bin delta_bins       = 5;
+    uint32       transitions      = 6;   // observations; always >= lifters
+}
+
+// ---------- Q8 ----------
+
+message AttemptsRequest {
+    GroupKey key  = 1;
+    LiftKind lift = 2;
+}
+
+message AttemptsResponse {
+    uint32       n                     = 1;   // rows with BOTH attempts present
+    uint32       third_attempt_success = 2;
+    float        success_rate          = 3;
+    float        mean_jump             = 4;   // attempt3 - attempt2, kg
+    float        sd_jump               = 5;
+    repeated Bin jump_bins             = 6;
+}
+
+

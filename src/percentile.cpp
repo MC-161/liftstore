@@ -207,6 +207,12 @@ PercentileResult PercentileIndex::percentile_of(Sex sex, Equipment equipment,
     r.mean  = li->mean;
     r.sd    = li->sd;
     r.found = true;
+
+    if (!li->sorted.empty()) {              // <-- new
+        r.min = li->sorted.front().value;
+        r.max = li->sorted.back().value;
+    }
+
     return r;
 
 }
@@ -287,6 +293,49 @@ NearestResult PercentileIndex::nearest(Sex sex, Equipment equipment, Event event
     return r;
 }
 
+
+HistogramResult PercentileIndex::histogram(Sex sex, Equipment equipment, Event event,
+                              std::uint8_t ipf_class, LiftKind which,
+                              float bin_width) const {
+    HistogramResult r;
+
+    const LiftIndex* li = find_index(sex, equipment, event, ipf_class, which);
+    if (li == nullptr) { return r; }
+
+    r.found     = true;
+    r.n         = li->sorted.size();
+    r.mean      = li->mean;
+    r.sd        = li->sd;
+    r.bin_width = bin_width;
+
+    if (li->sorted.empty()) { return r; }      // real class, no lifts: no bins
+
+    r.min = li->sorted.front().value;
+    r.max = li->sorted.back().value;
+
+    // 1. the EDGE, not the index -- you dropped the "* bin_width", so 70 kg became 7
+    const float first_edge = std::floor(r.min / bin_width) * bin_width;
+
+    // 2. floor, THEN cast, THEN +1 -- you had neither the cast nor the +1
+    const auto bin_count = static_cast<std::size_t>(
+                               std::floor((r.max - first_edge) / bin_width)) + 1;
+
+    // 3. sized up front: offsets[i] on an empty vector is UB, not a resize
+    std::vector<std::size_t> offsets(bin_count + 1);
+    for (std::size_t i = 0; i <= bin_count; ++i) {          // <= : one more edge than bins
+        offsets[i] = count_below(*li, first_edge + static_cast<float>(i) * bin_width);
+    }
+
+    // 4.
+    r.bins.reserve(bin_count);
+    for (std::size_t i = 0; i < bin_count; ++i) {           // < : bins, not edges
+        const float lo = first_edge + static_cast<float>(i)     * bin_width;
+        const float hi = first_edge + static_cast<float>(i + 1) * bin_width;
+        r.bins.push_back({lo, hi, offsets[i + 1] - offsets[i]});
+    }
+
+    return r;
+}
 
 
 
