@@ -14,6 +14,8 @@ service Engine {
     rpc EquipmentSwap  (EquipmentSwapRequest)  returns (EquipmentSwapResponse);
     rpc ClassChange    (ClassChangeRequest)    returns (ClassChangeResponse);
     rpc Attempts       (AttemptsRequest)       returns (AttemptsResponse);
+    rpc ValueAtPercentile (ValueAtPercentileRequest) returns (ValueAtPercentileResponse);
+    rpc DatasetStats   (DatasetStatsRequest)   returns (DatasetStatsResponse);
 }
 
 enum Sex {
@@ -257,4 +259,34 @@ message AttemptsResponse {
     repeated Bin jump_bins             = 6;
 }
 
+// ---------- Q3 ----------
 
+message ValueAtPercentileRequest {
+    Sex       sex        = 1;
+    Equipment equipment  = 2;
+    Event     event      = 3;
+    float     bodyweight = 4;
+    LiftKind  lift       = 5;
+    double    percentile = 6;     // (0, 100]; 0 is "unset", so it is rejected
+}
+
+message ValueAtPercentileResponse {
+    float  value             = 1;   // a weight somebody actually lifted
+    double actual_percentile = 2;   // percentile of `value`; <= requested, see below
+    uint32 n                 = 3;   // 0 is a valid answer: value is then 0
+    string weight_class      = 4;
+}
+
+// ---------- Q9 ----------
+
+message DatasetStatsRequest {
+    // All optional, unlike everywhere else: UNSPECIFIED means "any".
+    Sex       sex       = 1;
+    Equipment equipment = 2;
+    Event     event     = 3;
+}
+
+message DatasetStatsResponse {
+    uint32 results     = 1;   // placed rows with a total: the population queries rank
+    uint32 federations = 2;   // distinct federations among those rows
+}

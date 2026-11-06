@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 #include "engine/lift.h"
@@ -52,6 +53,11 @@ namespace engine {
 
 
 
+    struct DatasetStats {
+        std::size_t results     = 0;
+        std::size_t federations = 0;
+    };
+
     // Best result per lifter matching the filters, highest total first.
     // Returns pointers into `lifts`, valid as long as `lifts` isn't modified.
     [[nodiscard]] std::vector<const Lift*> top_lifters(const std::vector<Lift>& lifts,
@@ -70,6 +76,12 @@ namespace engine {
         LiftKind condition_lift, float condition_value,
         LiftKind target_lift,    float target_value,
         float tol = 2.5f, std::size_t min_n = 500);
+
+    // Placed rows with a total, and their distinct federations. Each filter is
+    // optional: nullopt matches everything.
+    [[nodiscard]] DatasetStats dataset_stats(const ColumnStore& store, std::optional<Sex> sex,
+                                             std::optional<Equipment> equipment,
+                                             std::optional<Event> event);
 
     [[nodiscard]] AttemptsResult attempts(const ColumnStore& store, Sex sex, Equipment equipment,
                         Event event, std::uint8_t ipf_class, LiftKind which,

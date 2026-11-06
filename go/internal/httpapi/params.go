@@ -77,6 +77,19 @@ func (p *params) f32(field string) float32 {
 	return float32(v)
 }
 
+func (p *params) f64(field string) float64 {
+	raw := p.q.Get(field)
+	if raw == "" {
+		return 0
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		p.fail("%s %q is not a number", field, raw)
+		return 0
+	}
+	return v
+}
+
 func (p *params) sex() enginev1.Sex {
 	return enginev1.Sex(p.enum(enginev1.Sex_value, "sex"))
 }

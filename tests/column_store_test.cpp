@@ -81,3 +81,30 @@ TEST(TopLiftersColumnar, SkipsMissingTotals) {
     }
 }
 
+// Q9 on a store small enough to count by hand. Every row push_row makes is
+// F/Raw/SBD/Placed, so the filters and gates are exercised by editing rows.
+TEST(DatasetStats, CountsPlacedRowsAndDistinctFederations) {
+    engine::ColumnStore s;
+    const char* feds[] = {"USAPL", "USAPL", "IPF", "WRPF", "GPC"};
+    const float totals[] = {100.0f, 200.0f, 300.0f, engine::kMissing, 400.0f};
+    const char* names[] = {"a", "b", "c", "d", "e"};
+    for (int i = 0; i < 5; ++i) {
+        push_row(s, names[i], totals[i], 20240101);
+        s.federation.push_back(static_cast<std::uint16_t>(s.federation_dict.intern(feds[i])));
+    }
+    s.sex[0] = engine::Sex::M;                       // USAPL still present via row 1
+    s.place_code[4] = engine::PlaceCode::DQ;         // GPC's only row: must not count
+    s.federation_dict.done_loading();
+
+    const auto all = engine::dataset_stats(s, std::nullopt, std::nullopt, std::nullopt);
+    EXPECT_EQ(all.results, 3u);                      // not WRPF (NaN), not GPC (DQ)
+    EXPECT_EQ(all.federations, 2u);                  // USAPL, IPF
+
+    const auto men = engine::dataset_stats(s, engine::Sex::M, std::nullopt, std::nullopt);
+    EXPECT_EQ(men.results, 1u);
+    EXPECT_EQ(men.federations, 1u);
+
+    const auto none = engine::dataset_stats(s, std::nullopt, engine::Equipment::Wraps, std::nullopt);
+    EXPECT_EQ(none.results, 0u);
+    EXPECT_EQ(none.federations, 0u);
+}

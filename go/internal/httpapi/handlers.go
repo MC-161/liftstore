@@ -154,3 +154,26 @@ func (a *API) attempts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *API) valueAtPercentile(w http.ResponseWriter, r *http.Request) {
+	p := newParams(r.URL.Query())
+	req := &enginev1.ValueAtPercentileRequest{
+		Sex: p.sex(), Equipment: p.equipment("equipment"), Event: p.event(),
+		Bodyweight: p.f32("bodyweight"), Lift: p.lift("lift"),
+		Percentile: p.f64("percentile"),
+	}
+	if p.err != nil { badRequest(w, p.err.Error()); return }
+	a.call(w, r, func(ctx context.Context) (proto.Message, error) {
+		return a.engine.ValueAtPercentile(ctx, req)
+	})
+}
+
+func (a *API) datasetStats(w http.ResponseWriter, r *http.Request) {
+	p := newParams(r.URL.Query())
+	req := &enginev1.DatasetStatsRequest{
+		Sex: p.sex(), Equipment: p.equipment("equipment"), Event: p.event(),
+	}
+	if p.err != nil { badRequest(w, p.err.Error()); return }
+	a.call(w, r, func(ctx context.Context) (proto.Message, error) {
+		return a.engine.DatasetStats(ctx, req)
+	})
+}

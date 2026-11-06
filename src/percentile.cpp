@@ -193,6 +193,23 @@ PercentileResult PercentileIndex::percentile_of(Sex sex, Equipment equipment,
 }
 
 
+ValueAtResult PercentileIndex::value_at_percentile(Sex sex, Equipment equipment, Event event,
+                                                   std::uint8_t ipf_class, LiftKind which,
+                                                   double pct) const {
+    ValueAtResult r;
+
+    const LiftIndex* li = find_index(sex, equipment, event, ipf_class, which);
+    if (li == nullptr) { return r; }        // found stays false, n stays 0
+
+    r.n     = li->sorted.size();
+    r.value = li->sorted[rank_index_at(r.n, pct)].value;
+    r.actual_percentile = 100.0 * static_cast<double>(count_below(*li, r.value))
+                                / static_cast<double>(r.n);
+    r.found = true;
+    return r;
+}
+
+
     DistributionResult PercentileIndex::distribution(
             Sex sex, Equipment equipment, Event event,
             std::uint8_t ipf_class, LiftKind which) const {

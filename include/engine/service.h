@@ -151,6 +151,14 @@ public:
                           const v1::AttemptsRequest*,
                           v1::AttemptsResponse*) override;
 
+    grpc::Status ValueAtPercentile(grpc::ServerContext*,
+                                   const v1::ValueAtPercentileRequest*,
+                                   v1::ValueAtPercentileResponse*) override;
+
+    grpc::Status DatasetStats(grpc::ServerContext*,
+                              const v1::DatasetStatsRequest*,
+                              v1::DatasetStatsResponse*) override;
+
     grpc::Status ConditionalPercentile(grpc::ServerContext*,
                                    const v1::ConditionalPercentileRequest*,
                                    v1::ConditionalPercentileResponse*) override;

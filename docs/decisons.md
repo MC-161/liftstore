@@ -370,6 +370,23 @@ server shouldn't decide what's statistically interesting.
 
 **Year from `date / 10000`**, with `date == 0` as the missing sentinel.
 
+### Q3 — inverse percentile ("for the 95th you need X")
+**Through `rank_index_at`, like everything else, and the response carries
+`actual_percentile`.** The inverse isn't exact: percentile counts *strictly below*, so
+when lifters tie at the returned weight, that weight's own percentile is lower than the
+one asked for. F/Raw/SBD 63 kg, p = 95: 405 kg, which `Percentile` reports as 94.93.
+Without the field, the Verdict screen says "405 for the 95th" and then "94.9th" for
+someone who enters 405, and nothing explains the difference.
+`p = 0` is rejected rather than meaning the minimum: proto3 can't tell it from unset.
+
+### Q9 — result count and distinct federations
+**The one request whose filters are optional**: `UNSPECIFIED` means "any", so Entry can
+ask for the whole dataset or narrow as the user picks. A number outside the enum is still
+rejected, because `from_proto` returns `nullopt` for both and an unknown value must not
+widen silently to "everything". Counts placed rows with a total, the population the
+rankings use: 3,748,104 of 4,032,180 rows. Distinct federations by a `uint8` array indexed
+on the dictionary code, no hash set.
+
 ### Q12 — cut
 `Expression` / `SortKey` and the generic query layer are cut. Largest remaining item,
 and nothing in the eight screens needs it. It's engine flexibility, not product value.

@@ -24,6 +24,8 @@ func NewRouter(client enginev1.EngineClient, corsOrigin string) http.Handler {
     	mux.HandleFunc("GET /api/equipment-swap", api.equipmentSwap)
     	mux.HandleFunc("GET /api/class-change", api.classChange)
     	mux.HandleFunc("GET /api/attempts", api.attempts)
+    	mux.HandleFunc("GET /api/value-at-percentile", api.valueAtPercentile)
+    	mux.HandleFunc("GET /api/dataset-stats", api.datasetStats)
 
     	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
     		w.WriteHeader(http.StatusOK)

@@ -229,6 +229,83 @@ namespace  engine {
         }
 
 
+    grpc::Status EngineService::ValueAtPercentile(grpc::ServerContext*,
+                                                  const v1::ValueAtPercentileRequest* request,
+                                                  v1::ValueAtPercentileResponse* response) {
+        const auto sex = from_proto(request->sex());
+        if (!sex) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "sex is required (got SEX_UNSPECIFIED)");
+        }
+        const auto equipment = from_proto(request->equipment());
+        if (!equipment) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "equipment is required (got EQUIPMENT_UNSPECIFIED)");
+        }
+        const auto event = from_proto(request->event());
+        if (!event) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "event is required (got EVENT_UNSPECIFIED)");
+        }
+        const auto lift = from_proto(request->lift());
+        if (!lift) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "lift is required (got LIFT_KIND_UNSPECIFIED)");
+        }
+
+        if (!(request->bodyweight() > 0.0f) || request->bodyweight() > 1000.0f) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "bodyweight must be between 0 and 1000 kg");
+        }
+
+        // !(p > 0) rather than p <= 0: this also rejects NaN.
+        const double pct = request->percentile();
+        if (!(pct > 0.0) || pct > 100.0) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "percentile must be in (0, 100]");
+        }
+
+        const std::uint8_t cls = ipf_class_index(*sex, request->bodyweight());
+        const ValueAtResult res = index_.value_at_percentile(*sex, *equipment, *event, cls,
+                                                             *lift, pct);
+
+        response->set_value(res.value);
+        response->set_actual_percentile(res.actual_percentile);
+        response->set_n(static_cast<std::uint32_t>(res.n));
+        response->set_weight_class(ipf_class_name(*sex, cls));
+
+        return grpc::Status::OK;
+    }
+
+
+    grpc::Status EngineService::DatasetStats(grpc::ServerContext*,
+                                             const v1::DatasetStatsRequest* request,
+                                             v1::DatasetStatsResponse* response) {
+        // UNSPECIFIED is "any" here, but from_proto also returns nullopt for a
+        // number outside the enum (proto3 enums are open), and that must not
+        // widen silently to "any".
+        const auto sex = from_proto(request->sex());
+        if (!sex && request->sex() != v1::SEX_UNSPECIFIED) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "unknown sex");
+        }
+        const auto equipment = from_proto(request->equipment());
+        if (!equipment && request->equipment() != v1::EQUIPMENT_UNSPECIFIED) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "unknown equipment");
+        }
+        const auto event = from_proto(request->event());
+        if (!event && request->event() != v1::EVENT_UNSPECIFIED) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "unknown event");
+        }
+
+        const auto res = dataset_stats(store_, sex, equipment, event);
+
+        response->set_results(static_cast<std::uint32_t>(res.results));
+        response->set_federations(static_cast<std::uint32_t>(res.federations));
+
+        return grpc::Status::OK;
+    }
+
+
     grpc::Status EngineService::ConditionalPercentile(
             grpc::ServerContext*,
             const v1::ConditionalPercentileRequest* request,

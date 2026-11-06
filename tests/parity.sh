@@ -49,6 +49,11 @@ parity "equipment-swap" EquipmentSwap \
        "/api/equipment-swap?sex=SEX_F&event=EVENT_SBD&from_equipment=EQUIPMENT_RAW&to_equipment=EQUIPMENT_SINGLE_PLY&lift=LIFT_KIND_TOTAL&ipf_class=4"
 parity "class-change" ClassChange  "{$FLAT,\"classDelta\":1}" \
        "/api/class-change?$FQ&class_delta=1"
+parity "value-at-percentile" ValueAtPercentile \
+       "{$FLAT,\"bodyweight\":62,\"lift\":\"LIFT_KIND_TOTAL\",\"percentile\":95}" \
+       "/api/value-at-percentile?$FQ&bodyweight=62&lift=LIFT_KIND_TOTAL&percentile=95"
+parity "dataset-stats" DatasetStats "{$FLAT}" "/api/dataset-stats?$FQ"
+parity "dataset-stats, no filter" DatasetStats '{}' "/api/dataset-stats"
 
 echo
 [ "$FAILED" -eq 0 ] && echo "all passed" || echo "$FAILED failed"

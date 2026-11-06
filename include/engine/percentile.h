@@ -31,6 +31,18 @@ struct DistributionResult {
     // bins + sigma marks come next
 };
 
+// Inverse of PercentileResult. `actual_percentile` is what percentile_of()
+// reports for `value`, and can sit below the percentile asked for: ties mean
+// sorted[rank_index_at(n, p)] can have fewer than p% strictly below it. F/Raw/SBD
+// 63 kg, p = 95: value 405, actual 94.93. Returned so the two directions can't
+// quietly disagree on screen.
+struct ValueAtResult {
+    bool        found             = false;
+    std::size_t n                 = 0;
+    float       value             = 0.0f;
+    double      actual_percentile = 0.0;
+};
+
 struct Neighbour { std::uint32_t row; float value; };
 
 struct NearestResult {
@@ -74,6 +86,11 @@ public:
     [[nodiscard]] PercentileResult percentile_of(Sex sex, Equipment equipment, Event event,
                                    std::uint8_t ipf_class, LiftKind, float value) const;
 
+
+    // Nearest-rank via rank_index_at(), the codebase's one percentile convention.
+    [[nodiscard]] ValueAtResult value_at_percentile(Sex sex, Equipment equipment, Event event,
+                                                    std::uint8_t ipf_class, LiftKind which,
+                                                    double pct) const;
 
     [[nodiscard]] DistributionResult distribution(Sex, Equipment, Event,
                                 std::uint8_t ipf_class, LiftKind) const;

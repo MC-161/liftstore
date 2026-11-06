@@ -247,6 +247,28 @@ namespace engine {
 }
 
 
+DatasetStats dataset_stats(const ColumnStore& store, std::optional<Sex> sex,
+                           std::optional<Equipment> equipment, std::optional<Event> event) {
+    DatasetStats r;
+
+    // Indexed by dictionary code: no hashing, and 475 federations fit in a cache
+    // line or eight. Local, not a member: handler threads share the store.
+    std::vector<std::uint8_t> seen(store.federation_dict.size(), 0);
+
+    for (std::size_t i = 0; i < store.size(); ++i) {
+        if (store.place_code[i] != PlaceCode::Placed || is_missing(store.total_kg[i])) { continue; }
+        if ((sex && store.sex[i] != *sex) || (equipment && store.equipment[i] != *equipment)
+            || (event && store.event[i] != *event)) { continue; }
+
+        ++r.results;
+        seen[store.federation[i]] = 1;
+    }
+
+    for (const std::uint8_t s : seen) { r.federations += s; }
+    return r;
+}
+
+
 AttemptsResult attempts(const ColumnStore &store, Sex sex, Equipment equipment, Event event, std::uint8_t ipf_class, LiftKind which, float bin_width) {
      AttemptsResult r;
 
