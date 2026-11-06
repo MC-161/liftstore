@@ -1,10 +1,11 @@
 #pragma once
-#include <vector>
 #include "engine/lift.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -27,8 +28,10 @@ namespace engine{
     public:
         Dictionary() { values_.emplace_back(); lookup_.emplace(std::string_view{}, 0); }
 
-        // Returns the index for s, adding it if it is new.
+        // Returns the index for s, adding it if it is new. Load-time only:
+        // after done_loading() there is no lookup table to keep in sync.
         std::uint32_t intern(std::string_view s) {
+            if (loaded_) { throw std::logic_error("Dictionary::intern after done_loading"); }
             if (s == last_key_) { return last_index_; }
 
             std::uint32_t index;
@@ -47,27 +50,49 @@ namespace engine{
         }
 
 
-        std::string_view value(std::uint32_t index) const { return values_[index]; }
+        [[nodiscard]] std::string_view value(std::uint32_t index) const { return values_[index]; }
 
         // Index of s, or 0 (empty) if s is not in the dictionary.
         // Used by queries to turn a filter value into an integer once.
-        std::uint32_t find(std::string_view s) const {
-            auto it = lookup_.find(s);
-            return it == lookup_.end() ? 0 : it->second;
+        // After done_loading() this is a binary search over sorted_, which
+        // is what queries actually hit: the hash map is gone by then.
+        [[nodiscard]] std::uint32_t find(std::string_view s) const {
+            if (!loaded_) {
+                auto it = lookup_.find(s);
+                return it == lookup_.end() ? 0 : it->second;
+            }
+            auto it = std::lower_bound(sorted_.begin(), sorted_.end(), s,
+                                       [this](std::uint32_t ix, std::string_view key) {
+                                           return std::string_view(values_[ix]) < key;
+                                       });
+            return (it != sorted_.end() && values_[*it] == s) ? *it : 0;
         }
 
-        std::size_t size() const { return values_.size(); }
+        [[nodiscard]] std::size_t size() const { return values_.size(); }
 
         // Drops the build-time lookup table, whose keys point into the file
-        // buffer. Call once loading is finished.
-        void done_loading() { lookup_.clear(); last_key_ = {}; }
+        // buffer, and replaces it with a sorted permutation of values_ for
+        // find(). 4 bytes per entry (~4 MB for 1M names) instead of rebuilding
+        // the hash map over values_ (~50 MB). Call once loading is finished.
+        void done_loading() {
+            lookup_ = {};                  // = {}, not clear(): release the buckets too
+            last_key_ = {};
+            sorted_.resize(values_.size());
+            for (std::uint32_t i = 0; i < sorted_.size(); ++i) { sorted_[i] = i; }
+            std::sort(sorted_.begin(), sorted_.end(), [this](std::uint32_t a, std::uint32_t b) {
+                return values_[a] < values_[b];
+            });
+            loaded_ = true;
+        }
 
 
     private:
         std::vector<std::string> values_;
         std::unordered_map<std::string_view, std::uint32_t> lookup_;
+        std::vector<std::uint32_t> sorted_;   // indexes into values_, ordered by value
         std::string_view last_key_{};      // starts empty
         std::uint32_t last_index_ = 0;
+        bool loaded_ = false;
     };
 
 
@@ -90,10 +115,10 @@ namespace engine{
         ColumnStore(ColumnStore&&) noexcept = default;
         ColumnStore& operator=(ColumnStore&&) noexcept = default;
 
-        std::size_t size() const { return total_kg.size(); }
+        [[nodiscard]] std::size_t size() const { return total_kg.size(); }
 
         void reserve(std::size_t n);
-        bool check_invariant() const;   // every column the same length
+        [[nodiscard]] bool check_invariant() const;   // every column the same length
 
 
         // Name: 1,013,154 distinct over 4M rows (~4 rows each).
@@ -206,6 +231,6 @@ namespace engine{
     };
 
 
-    ColumnStore load_columns(const char* path);
-    const std::vector<float>& column_of(const ColumnStore& s, LiftKind w);
+    [[nodiscard]] ColumnStore load_columns(const char* path);
+    [[nodiscard]] const std::vector<float>& column_of(const ColumnStore& s, LiftKind w);
 }

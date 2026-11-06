@@ -149,9 +149,9 @@ std::optional<WeightClass> parse_weight_class(std::string_view s) {
         if (*p == ',' || *p == '\n') {
             if (count == fields.size()) {
                 fail("too many fields on line",
-                     std::string_view(line_start, p - line_start));
+                     std::string_view(line_start, static_cast<std::size_t>(p - line_start)));
             }
-            fields[count] = std::string_view(field_start, p - field_start);
+            fields[count] = std::string_view(field_start, static_cast<std::size_t>(p - field_start));
             ++count;
             field_start = p + 1;
             if (*p == '\n') {
@@ -164,9 +164,9 @@ std::optional<WeightClass> parse_weight_class(std::string_view s) {
     if (line_start < end) {
         if (count == fields.size()) {
             fail("too many fields on line",
-                 std::string_view(line_start, end - line_start));
+                 std::string_view(line_start, static_cast<std::size_t>(end - line_start)));
         }
-        fields[count] = std::string_view(field_start, end - field_start);
+        fields[count] = std::string_view(field_start, static_cast<std::size_t>(end - field_start));
         ++count;
     }
     return end;

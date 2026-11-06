@@ -19,7 +19,12 @@ add_link_options($<$<CONFIG:Debug>:-fsanitize=address,undefined>)
 
 # Warning flags bundled into one reusable target
 add_library(engine_warnings INTERFACE)
-target_compile_options(engine_warnings INTERFACE -Wall -Wextra)
+# -Wconversion (which in clang includes -Wsign-conversion) because a silent
+# narrowing is this codebase's characteristic bug: a size_t into a uint32
+# field, a uint8 class subtracted without a cast, a float constant used as a
+# count. -Wshadow because handlers bind `sex`, `lift`, `cls` at every level.
+target_compile_options(engine_warnings INTERFACE
+        -Wall -Wextra -Wconversion -Wsign-conversion -Wshadow)
 
 
 include(FetchContent)

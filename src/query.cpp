@@ -99,7 +99,7 @@ namespace engine {
                           return *a->total_kg > *b->total_kg;  // higher total first
                       }
                       if (a->name != b->name) {
-                          return a->name < b->name;            // tie: alphabetical
+                          return a->name < b->name;            // tie: byte order, not alphabetical
                       }
                       return a->date < b->date;                // same lifter: earlier meet first
                   });
@@ -135,10 +135,16 @@ namespace engine {
         // worst case instead would be 12 MB x 50 concurrent = 640 MB.
         matches.reserve(n_rows / 10);
         for (std::size_t i = 0; i < n_rows; ++i) {
+            // Placed is SUPPOSED to imply a total, but nothing enforces it. A NaN
+            // that got through would break cmp's strict weak ordering (NaN != x
+            // is true, NaN > x is false), which is UB in partial_sort -- rows
+            // leak in or vanish depending on where the NaN lands. Same guard
+            // the row-oriented version gets from has_value().
             if (store.sex[i] == sex && store.equipment[i] == equipment &&
-                store.event[i] == event && store.place_code[i] == PlaceCode::Placed) {
+                store.event[i] == event && store.place_code[i] == PlaceCode::Placed &&
+                !is_missing(store.total_kg[i])) {
                 matches.push_back({static_cast<std::uint32_t>(i), store.total_kg[i]});
-                }
+            }
         }
         const double filter_ms  = t.ms();
 

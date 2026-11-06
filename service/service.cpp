@@ -103,6 +103,17 @@ namespace  engine {
 
 
 
+    // One copy of the four GroupSummary setters, used by every handler that
+    // returns a summary: four hand-written copies is where a set_mean(d.sd)
+    // typo hides, because the number still looks like a number.
+    void fill_stats(v1::GroupSummary* out, const DistributionResult& d,
+                    std::string_view weight_class) {
+        out->set_weight_class(weight_class.data(), weight_class.size());
+        out->set_n(static_cast<std::uint32_t>(d.n));
+        out->set_mean(static_cast<float>(d.mean));
+        out->set_sd(static_cast<float>(d.sd));
+    }
+
     grpc::Status EngineService::TopLifters(grpc::ServerContext*, const v1::TopLiftersRequest *request, v1::TopLiftersResponse *response) {
         // Translate and validate boundary
         const auto sex = from_proto(request->sex());
@@ -199,13 +210,10 @@ namespace  engine {
                                               value, kNeighbourCount, store_.name);
         for (const Neighbour& nb : near.neighbours) {
             v1::Neighbour* out = response->add_neighbours();
-            out->set_name(store_.name_dict.value(store_.name[nb.row]));
+            const std::string_view name = store_.name_dict.value(store_.name[nb.row]);
+            out->set_name(name.data(), name.size());   // same overload as TopLifters
             out->set_value(nb.value);
         }
-
-        std::fprintf(stderr, "[dbg] k=%zu near.found=%d near.n=%zu got=%zu\n",
-                 kNeighbourCount, static_cast<int>(near.found),
-                 near.n, near.neighbours.size());
 
         const PercentileResult res =
             index_.percentile_of(*sex, *equipment, *event, cls , *lift, value);
@@ -322,10 +330,7 @@ namespace  engine {
 
         v1::GroupSummary* summary = response->mutable_summary();
         summary->mutable_key()->CopyFrom(key);
-        summary->set_weight_class(ipf_class_name(*sex, cls));
-        summary->set_n(static_cast<std::uint32_t>(dist.n));
-        summary->set_mean(static_cast<float>(dist.mean));
-        summary->set_sd(static_cast<float>(dist.sd));
+        fill_stats(summary, dist, ipf_class_name(*sex, cls));
 
         // A real but empty class: populated summary, no bins, no marks.
         if (dist.n == 0) { return grpc::Status::OK; }
@@ -408,10 +413,7 @@ namespace  engine {
             k->set_event(request->event());
             k->set_ipf_class(c);
 
-            s->set_weight_class(ipf_class_name(*sex, cls));
-            s->set_n(static_cast<std::uint32_t>(dist.n));
-            s->set_mean(static_cast<float>(dist.mean));
-            s->set_sd(static_cast<float>(dist.sd));
+            fill_stats(s, dist, ipf_class_name(*sex, cls));
 
             // No percentile in an empty class -- 0.0 would read as "bottom of the group".
             if (has_value && dist.n > 0) {
@@ -488,15 +490,6 @@ namespace  engine {
 
         return grpc::Status::OK;
     }
-    // Fourth time writing this fill -- extract it. Lives beside format_date.
-    void fill_stats(v1::GroupSummary* out, const DistributionResult& d,
-                    std::string_view weight_class) {
-        out->set_weight_class(weight_class.data(), weight_class.size());
-        out->set_n(static_cast<std::uint32_t>(d.n));
-        out->set_mean(static_cast<float>(d.mean));
-        out->set_sd(static_cast<float>(d.sd));
-    }
-
     grpc::Status EngineService::EquipmentSwap(grpc::ServerContext*,
                                              const v1::EquipmentSwapRequest* request,
                                              v1::EquipmentSwapResponse* response) {

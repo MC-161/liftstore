@@ -12,19 +12,19 @@ namespace engine {
                            std::array<std::string_view, 42>& fields,
                            std::size_t& count);
 
-    Sex parse_sex(std::string_view s);
+    [[nodiscard]] Sex parse_sex(std::string_view s);
 
-    Event parse_event(std::string_view s);
-    Equipment parse_equipment(std::string_view s);
-    std::optional<float> parse_optional_float(std::string_view s);
-    Place parse_place(std::string_view s);
-    std::optional<WeightClass> parse_weight_class(std::string_view s);
-    bool parse_tested(std::string_view s);
-    bool parse_sanctioned(std::string_view s);
-    float parse_float_or_missing(std::string_view s);
-    std::uint32_t parse_date(std::string_view s);
+    [[nodiscard]] Event parse_event(std::string_view s);
+    [[nodiscard]] Equipment parse_equipment(std::string_view s);
+    [[nodiscard]] std::optional<float> parse_optional_float(std::string_view s);
+    [[nodiscard]] Place parse_place(std::string_view s);
+    [[nodiscard]] std::optional<WeightClass> parse_weight_class(std::string_view s);
+    [[nodiscard]] bool parse_tested(std::string_view s);
+    [[nodiscard]] bool parse_sanctioned(std::string_view s);
+    [[nodiscard]] float parse_float_or_missing(std::string_view s);
+    [[nodiscard]] std::uint32_t parse_date(std::string_view s);
 
-    Lift make_lift(const std::array<std::string_view, 42>& f);
-    Lift make_lift_numbers_only(const std::array<std::string_view, 42>& f);
+    [[nodiscard]] Lift make_lift(const std::array<std::string_view, 42>& f);
+    [[nodiscard]] Lift make_lift_numbers_only(const std::array<std::string_view, 42>& f);
 
 }  // namespace engine

@@ -19,16 +19,19 @@ namespace engine {
         std::fseek(f, 0, SEEK_SET);
 
 
-        char* buf = new char[size];
-        size_t got = std::fread(buf, 1, size, f);
+        // size >= 0 was checked above, so this cast cannot wrap.
+        const auto usize = static_cast<std::size_t>(size);
+        char* buf = new char[usize];
+        size_t got = std::fread(buf, 1, usize, f);
         std::fclose(f);
-        if (got != static_cast<size_t>(size)) {
+        if (got != usize) {
             delete[] buf;
-            throw std::runtime_error(std::string("short read: got %zu of %ld bytes ") + path);
+            throw std::runtime_error("short read: got " + std::to_string(got) + " of " +
+                                     std::to_string(usize) + " bytes: " + path);
         }
 
         data_ = buf;
-        size_ = size;
+        size_ = usize;
     }
 
     FileBuffer::~FileBuffer() {

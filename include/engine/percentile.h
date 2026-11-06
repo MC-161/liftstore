@@ -71,25 +71,25 @@ public:
 
     // Percentile = (count strictly below) / (group size), no interpolation.
     // The simplest definition to state, and the least misleading on small samples
-    PercentileResult percentile_of(Sex sex, Equipment equipment, Event event,
+    [[nodiscard]] PercentileResult percentile_of(Sex sex, Equipment equipment, Event event,
                                    std::uint8_t ipf_class, LiftKind, float value) const;
 
 
-    DistributionResult distribution(Sex, Equipment, Event,
+    [[nodiscard]] DistributionResult distribution(Sex, Equipment, Event,
                                 std::uint8_t ipf_class, LiftKind) const;
 
-    NearestResult nearest(Sex, Equipment, Event, std::uint8_t ipf_class,
+    [[nodiscard]] NearestResult nearest(Sex, Equipment, Event, std::uint8_t ipf_class,
                       LiftKind which, float value, std::size_t k, const std::vector<std::uint32_t>& names) const;
 
-    HistogramResult histogram(Sex sex, Equipment equipment, Event event,
+    [[nodiscard]] HistogramResult histogram(Sex sex, Equipment equipment, Event event,
                           std::uint8_t ipf_class, LiftKind which,
                           float bin_width) const;
 
 
-    std::size_t group_count() const;    // groups with at least one value
-    std::size_t total_values() const;   // values across all groups
-    std::size_t bytes() const;          // memory held by the sorted arrays
-    std::size_t values(LiftKind which) const;   // entries for one lift, all groups
+    [[nodiscard]] std::size_t group_count() const;    // groups with at least one value
+    [[nodiscard]] std::size_t total_values() const;   // values across all groups
+    [[nodiscard]] std::size_t bytes() const;          // memory held by the sorted arrays
+    [[nodiscard]] std::size_t values(LiftKind which) const;   // entries for one lift, all groups
 
 private:
     // The key space is dense and tiny: 3 sexes x 6 equipment x 7 events x

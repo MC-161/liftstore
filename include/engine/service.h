@@ -43,10 +43,10 @@ namespace engine {
 // compile fine at every call site that forgot to check.
 // -----------------------------------------------------------------
 
-std::optional<Sex>       from_proto(v1::Sex s);
-std::optional<Equipment> from_proto(v1::Equipment e);
-std::optional<Event>     from_proto(v1::Event e);
-std::optional<LiftKind> from_proto(v1::LiftKind l);
+[[nodiscard]] std::optional<Sex>       from_proto(v1::Sex s);
+[[nodiscard]] std::optional<Equipment> from_proto(v1::Equipment e);
+[[nodiscard]] std::optional<Event>     from_proto(v1::Event e);
+[[nodiscard]] std::optional<LiftKind>  from_proto(v1::LiftKind l);
 
 // 0 means "unset" -> kDefaultLimit. Over kMaxLimit is an
 // error, not a clamp. kDefaultLimit matches top_lifters_columnar's
@@ -58,11 +58,11 @@ inline constexpr std::uint32_t kMaxLimit     = 30000;
 inline constexpr std::size_t kNeighbourCount = 5;
 inline constexpr float       kDefaultBinWidth = 10.0f;
 inline constexpr std::size_t kMaxBins         = 500;
-inline constexpr float       kIpfClassCount = 9;
+inline constexpr std::uint32_t kIpfClassCount = 9;
 inline constexpr float kDefaultJumpBinWidth = 2.5f;
 inline constexpr std::uint32_t kMinYear = 1950;
 inline constexpr std::uint32_t kMaxYear = 2100;
-inline constexpr std::uint32_t kDefaultClassDeltaBinWidth = 5.0f;
+inline constexpr float       kDefaultClassDeltaBinWidth = 5.0f;
 
 struct BinWidth {
     float       width = 0.0f;
@@ -78,11 +78,11 @@ struct YearRange {
 };
 
 
-YearRange resolve_years(std::uint32_t start, std::uint32_t end);
+[[nodiscard]] YearRange resolve_years(std::uint32_t start, std::uint32_t end);
 
-BinWidth resolve_bin_width(float requested, float min, float max);
+[[nodiscard]] BinWidth resolve_bin_width(float requested, float min, float max);
 // nullopt => requested exceeds kMaxLimit.
-std::optional<std::uint32_t> resolve_limit(std::uint32_t requested);
+[[nodiscard]] std::optional<std::uint32_t> resolve_limit(std::uint32_t requested);
 
 
 // -----------------------------------------------------------------
@@ -106,8 +106,7 @@ std::optional<std::uint32_t> resolve_limit(std::uint32_t requested);
 // or lazily initialised breaks that guarantee silently.
 // -----------------------------------------------------------------
 
-std::string format_date(std::uint32_t yyyymmdd);
-std::optional<std::uint32_t> resolve_limit(std::uint32_t requested);
+[[nodiscard]] std::string format_date(std::uint32_t yyyymmdd);
 
 class EngineService final : public v1::Engine::Service {
 public:

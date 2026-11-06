@@ -1,0 +1,32 @@
+# Matches the style the code is already written in, so formatting a file
+# changes layout noise, not shape. Not applied tree-wide yet: that wants its
+# own commit, so `git blame` on real changes stays readable.
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++20
+
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+NamespaceIndentation: None
+AccessModifierOffset: -4
+
+# `if (n == 0) { return {}; }` stays on one line -- used throughout.
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortFunctionsOnASingleLine: All
+AllowShortLambdasOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+
+# The column-store and Lift struct comments are aligned by hand; keep that.
+AlignTrailingComments: true
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: None
+SpacesBeforeTrailingComments: 2
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+BreakBeforeBraces: Attach
+AlwaysBreakTemplateDeclarations: Yes
+SortIncludes: Never
+ReflowComments: false

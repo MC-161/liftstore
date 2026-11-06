@@ -67,7 +67,7 @@ void sort_lift(LiftIndex& li) {
         // Calculate mean
         double sum = std::accumulate(li.sorted.begin(), li.sorted.end(), 0.0,
                 [](double acc, const Entry& e) { return acc + e.value; });
-        li.mean = sum / li.sorted.size();
+        li.mean = sum / static_cast<double>(li.sorted.size());
 
         //  Calculate sum of squared differences
         double mean = li.mean;
@@ -79,7 +79,7 @@ void sort_lift(LiftIndex& li) {
 
         // Calculate standard deviation (using population variance: size)
 
-        li.sd = std::sqrt(ss / li.sorted.size());
+        li.sd = std::sqrt(ss / static_cast<double>(li.sorted.size()));
     }
 
 }

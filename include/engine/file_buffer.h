@@ -12,8 +12,8 @@ namespace engine {
         FileBuffer(const FileBuffer&) = delete;
         FileBuffer& operator=(const FileBuffer&) = delete;
 
-        const char* data() const { return data_; }
-        std::size_t size() const { return size_; }
+        [[nodiscard]] const char* data() const { return data_; }
+        [[nodiscard]] std::size_t size() const { return size_; }
 
     private:
         char* data_ = nullptr;

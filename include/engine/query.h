@@ -54,35 +54,35 @@ namespace engine {
 
     // Best result per lifter matching the filters, highest total first.
     // Returns pointers into `lifts`, valid as long as `lifts` isn't modified.
-    std::vector<const Lift*> top_lifters(const std::vector<Lift>& lifts,
+    [[nodiscard]] std::vector<const Lift*> top_lifters(const std::vector<Lift>& lifts,
                                          Sex sex, Equipment equipment, Event event,
                                          std::size_t n);
 
     struct Ranked { std::uint32_t row; float total; };
 
-    std::vector<Ranked> top_lifters_columnar(const ColumnStore& store,
+    [[nodiscard]] std::vector<Ranked> top_lifters_columnar(const ColumnStore& store,
                                              Sex sex, Equipment equipment, Event event,
                                              std::size_t n);
 
-    ConditionalResult conditional_percentile(
+    [[nodiscard]] ConditionalResult conditional_percentile(
         const ColumnStore& store,
         Sex sex, Equipment equipment, Event event,
         LiftKind condition_lift, float condition_value,
         LiftKind target_lift,    float target_value,
         float tol = 2.5f, std::size_t min_n = 500);
 
-    AttemptsResult attempts(const ColumnStore& store, Sex sex, Equipment equipment,
+    [[nodiscard]] AttemptsResult attempts(const ColumnStore& store, Sex sex, Equipment equipment,
                         Event event, std::uint8_t ipf_class, LiftKind which,
                         float bin_width);
 
-    std::vector<TrendRow> class_trend(const ColumnStore& store, Sex sex, Equipment equipment,
+    [[nodiscard]] std::vector<TrendRow> class_trend(const ColumnStore& store, Sex sex, Equipment equipment,
                                   Event event, std::uint8_t ipf_class, LiftKind which,
                                   std::uint32_t start_year, std::uint32_t end_year);
 
-    SwapResult equipment_swap(const ColumnStore& store, Sex sex, Event event,
+    [[nodiscard]] SwapResult equipment_swap(const ColumnStore& store, Sex sex, Event event,
                            Equipment from, Equipment to, std::uint8_t ipf_class,
                            LiftKind which);
 
-    ClassChangeResult class_change(const ColumnStore& store, Sex sex, Equipment equipment,
+    [[nodiscard]] ClassChangeResult class_change(const ColumnStore& store, Sex sex, Equipment equipment,
                                Event event, int class_delta, float bin_width);
 }

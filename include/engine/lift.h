@@ -16,7 +16,7 @@ struct HistBin { float low; float high; std::size_t count; };   // [low, high)
 
 // The convention: nearest-rank, flooring. ONE definition of "percentile p" for
 // the whole codebase -- Q5, Q11 and anything later all go through this.
-inline std::size_t rank_index_at(std::size_t n, double pct) {
+[[nodiscard]] inline std::size_t rank_index_at(std::size_t n, double pct) {
     if (n == 0) { return 0; }
     if (pct <= 0.0)   { return 0; }
     if (pct >= 100.0) { return n - 1; }
@@ -25,7 +25,7 @@ inline std::size_t rank_index_at(std::size_t n, double pct) {
 }
 
 // Convenience for a plain ascending vector of values.
-inline float value_at(const std::vector<float>& sorted, double pct) {
+[[nodiscard]] inline float value_at(const std::vector<float>& sorted, double pct) {
     if (sorted.empty()) { return 0.0f; }
     return sorted[rank_index_at(sorted.size(), pct)];
 }

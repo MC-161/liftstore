@@ -34,5 +34,7 @@ add_library(engine_proto STATIC
 
 
 
-target_include_directories(engine_proto PUBLIC ${GEN_DIR})
+# SYSTEM: generated code is not ours to fix, so -Wconversion/-Wshadow in
+# engine_warnings must not fire on it in every file that includes it.
+target_include_directories(engine_proto SYSTEM PUBLIC ${GEN_DIR})
 target_link_libraries(engine_proto PUBLIC protobuf::libprotobuf gRPC::grpc++)
