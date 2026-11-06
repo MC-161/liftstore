@@ -1,7 +1,7 @@
 <img width="1983" height="793" alt="Liftstore_ Columnar Queries in 5 ms" src="https://github.com/user-attachments/assets/c103b942-d8e2-4880-9c82-190723ef6fbd" />
 
 **A columnar query engine in C++20 over 4,032,180 powerlifting competition
-results — built to answer one question nobody else answers, in 5 ms.**
+results — built to answer one question nobody else answers, in under 9 ms.**
 
 ```
 Among the 38,298 lifters who squat 210 kg,
@@ -54,9 +54,63 @@ throughput ── gRPC service, 50 concurrent clients
 > work — it's waiting on memory far less. Measure instruction counts alone and
 > you'd conclude the rewrite made things worse.
 
-Both paths return byte-identical results on every run. The row-oriented
-implementation is still in the repo, still differentially tested against the
-columnar one — it's the reference, not a strawman.
+Both paths return byte-identical results. The row-oriented implementation is
+still in the repo and still benchmarked beside the columnar one — it's the
+reference, not a strawman.
+
+---
+
+## Benchmarks
+
+Google Benchmark, Release (`-O3`), Apple M1 Pro, full dataset (4,032,180 rows),
+single thread, best of 5 repetitions (medians within 1–2%). Source:
+[`bench/bench_main.cpp`](bench/bench_main.cpp); full tables and method in
+[`docs/benchmarks.md`](docs/benchmarks.md).
+
+| Query | | Time |
+|---|---|---:|
+| Top 10, F / Raw / SBD | row-oriented (`vector<Lift>`, full sort) | 107.6 ms |
+| | columnar, full sort | 78.6 ms |
+| | **columnar, `partial_sort` + retry** (shipped) | **5.19 ms** |
+| Percentile, F / Raw / SBD / 63 kg | scan the columns | 4.63 ms |
+| | **sorted index, binary search** (shipped) | **63 ns** |
+| Conditional percentile (the hero query) | squat 210 ± 2.5 → bench 140, n = 38,298 | **8.78 ms** |
+| | rare cohort, widens to ± 5 (two scans) | 15.4 ms |
+
+The two changes in the top-10 row are separable: the layout alone is
+107.6 → 78.6 ms (1.4×); the sort algorithm is 78.6 → 5.19 ms (15×).
+
+### Against DuckDB and Polars
+
+Same CSV, same machine, same answers — [`bench/compare.py`](bench/compare.py)
+exits if any library's result differs from the engine's reconciled numbers.
+Hot (data in memory), best of 20. Filter columns are ENUM-encoded at load in
+both libraries, as the engine's are.
+
+| ms | engine | DuckDB 1 thread | Polars 1 thread | DuckDB 8 threads | Polars 8 threads |
+|---|---:|---:|---:|---:|---:|
+| Top 10, one per lifter | **5.19** | 30.6 | 58.9 | 9.52 | 22.0 |
+| Conditional percentile | 8.78 | 13.7 | 8.93 | 4.97 | **2.42** |
+| Percentile (group count) | **0.00006** (index) · 4.63 (scan) | 12.2 | 9.45 | 4.40 | 2.47 |
+
+DuckDB 2.0.0, Polars 2.0.0, Python 3.14. The engine is single-threaded.
+
+What that table says, without spin:
+
+- **Top 10 is the engine's win everywhere** — 1.8× DuckDB even with DuckDB
+  on all eight cores. Both libraries answer it with a full group-by over a
+  million names; the engine sorts 200 rows and dedupes.
+- **On a plain filtered scan, single-threaded, the engine is level with
+  Polars** (8.78 vs 8.93 ms) and 1.6× DuckDB. There is no layout trick left:
+  it's the same columnar scan.
+- **With eight cores, both libraries beat it** — Polars runs the hero query
+  3.6× faster. The engine uses one core per query. That is the next lever,
+  and the table puts a number on it.
+- **The index is the one thing neither has.** 63 ns against 2.5 ms is what
+  precomputing a sorted array per group buys, for the queries where the
+  group is known in advance.
+
+---
 
 ---
 
@@ -99,8 +153,8 @@ git clone https://github.com/MC-161/liftstore && cd liftstore
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release -j
 
-# a 5,000-row sample is committed — no 786 MB download needed
-./build-release/apps/engine data/sample.csv soa
+# a 200,000-row sample is committed — no 786 MB download needed
+./build-release/apps/engine data/dev.csv soa
 ```
 
 Serve it:
@@ -166,8 +220,8 @@ branch, forced by a cohort of 5.
 
 ## Stack
 
-C++20 · CMake · gRPC + protobuf · GoogleTest · Google Benchmark ·
-ASan/UBSan/TSan · `ghz`
+C++20 · CMake · gRPC + protobuf · Go · GoogleTest · Google Benchmark ·
+ASan/UBSan/TSan · `ghz` · `-Wconversion -Wshadow`, warning-free
 
 ```
 include/engine/   public headers
@@ -175,8 +229,9 @@ src/              engine_core — parsing, column store, queries, indexes
 service/          gRPC adapter (proto types in, domain types out)
 proto/            engine.proto + generated code
 apps/             CLI and server
+go/               HTTP/JSON gateway (stateless; every number comes from the engine)
 tests/            reference tests, each citing its awk command
-bench/            micro-benchmarks
+bench/            Google Benchmark suite + DuckDB/Polars comparison
 docs/             demo tapes — every GIF regenerable with `vhs docs/*.tape`
 ```
 
@@ -195,8 +250,9 @@ write happens before any reader exists.
 | ✅ | columnar store · dictionary encoding · percentile index |
 | ✅ | conditional percentile — the hero query — verified three ways |
 | ✅ | gRPC service, load-tested |
-| 🔨 | distribution · nearest · class sweep · trends |
-| 🔨 | Go API service |
+| ✅ | distribution · nearest · class sweep · trends · attempts · equipment swap · class change |
+| ✅ | Go HTTP/JSON gateway, parity-tested against gRPC on every endpoint |
+| ✅ | Google Benchmark suite · DuckDB / Polars comparison |
 | 📋 | frontend — specified, not yet built |
 
 ---

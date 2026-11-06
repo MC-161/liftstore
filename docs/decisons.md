@@ -519,17 +519,28 @@ omitting `-emit-defaults`, arriving from a different direction.
 
 ## 10. Open items
 
-- `Dictionary::find()` returns 0 after `done_loading()`.
-- `// tie: alphabetical` is wrong — the sort is byte order.
-- `top_lifters_columnar`'s filter is missing an `!is_missing(total)` guard.
-- Dead commented block, `query.cpp` lines 69–99.
-- `q5.sh` not yet migrated onto `tests/lib.sh`.
-- `fill_stats` not yet applied in `Distribution` and `ClassSweep`.
-- `TopLifters` uses the `(ptr, len)` protobuf setter with a comment explaining why;
-  `Percentile` passes a `string_view` directly. One of them contradicts the comment.
+Done 2026-10-25: `Dictionary::find()` after `done_loading()` (now a binary search
+over a sorted index, 4 B/entry); `!is_missing(total)` guard in
+`top_lifters_columnar` (latent: 0 such rows in today's file, but UB in
+`partial_sort` if one appears); the byte-order tie comment; dead commented block
+(it was in `apps/main.cpp`, not `query.cpp`); `q5.sh` on `lib.sh`; `fill_stats`
+everywhere; the `(ptr, len)` setter used consistently; `-Wconversion
+-Wsign-conversion -Wshadow` warning-free; `[[nodiscard]]`; `.clang-format`
+added; `parity.sh` covers all nine endpoints; four benchmarks; README table
+with DuckDB and Polars. §1.3 settled: keep the inline filter (docs/benchmarks.md).
+
+Also fixed en route: a `[dbg]` `fprintf(stderr)` on every `Percentile` request
+(the thing §8 measured at −14% throughput); `kIpfClassCount` was a `float`, so
+error messages read `0..8.000000`; `kDefaultClassDeltaBinWidth` was a
+`uint32_t` initialised from `5.0f`; FileBuffer's short-read error printed a
+literal `%zu`.
+
+Still open:
+
 - `kMaxLimit` vs the 4 MB receive limit: real boundary untested.
-- `-Wconversion`, `-Wshadow`, `-Wsign-conversion`, `[[nodiscard]]`, `.clang-format`.
-- Four Google Benchmarks; the filter-inline-vs-gather one settles §1.3 of the build spec.
-- README with the benchmark table, including the DuckDB and Polars comparisons.
+- `.clang-format` not yet applied tree-wide — wants its own commit.
+- Parallel scan: Polars on 8 cores runs the hero query 3.6× faster than the
+  engine on one (docs/benchmarks.md).
+- Why chunked gather is 6–17% slower than inline on selective groups.
 - Frontend: where a trend line should start being drawn (first year with n ≥ some
   threshold) is an open product question.

@@ -186,3 +186,145 @@ Not measurable: matches.reserve() showed no effect above
 run-to-run variation; kept on principle.
 Cold start: first 5,000 requests after startup run at ~43% of
 steady-state throughput.
+
+---
+
+## Google Benchmark suite (`bench/bench_main.cpp`)
+
+Release `-O3`, Apple M1 Pro, full dataset, single thread. 5 repetitions;
+**best** reported, medians within 1–2% unless noted. Re-run three times across
+the session with the same results to within ~2%.
+
+```bash
+cmake --build build-release --target engine_bench
+./build-release/bench/engine_bench --benchmark_repetitions=5
+```
+
+Groups, by selectivity (Placed, total present):
+
+| Group | Matches | Share of rows |
+|---|---:|---:|
+| M / Raw / SBD | 750,556 | 18.6% |
+| F / Raw / SBD | 375,568 | 9.3% |
+| F / Multi-ply / SBD | 7,476 | 0.19% |
+
+### 1. Filter: inline vs gather — settles build spec §1.3
+
+Filter stage alone, all three producing the same `vector<Ranked>`:
+
+| ms | M/Raw/SBD | F/Raw/SBD | F/Multi-ply/SBD |
+|---|---:|---:|---:|
+| Inline, branchy (shipped) | 6.95 | 5.56 | 4.45 |
+| Inline, branch-free write | 5.63 | 4.20 | 3.51 |
+| Gather (branch-free selection vector, then gather) | 5.49 | 4.04 | 3.18 |
+
+The isolated loops overstate it — the shipped *function*, sort included, runs
+faster (5.19 ms for F) than the isolated inline filter loop (5.56 ms). So the
+deciding measurement is end to end: `top_lifters_columnar` with only its
+filter swapped.
+
+| ms, end to end | M/Raw/SBD | F/Raw/SBD | F/Multi-ply/SBD |
+|---|---:|---:|---:|
+| Inline (shipped) | 7.61 | 5.19 | 3.67 |
+| Gather, one selection vector over the table | **6.44** (−15%) | **4.57** (−12%) | **3.34** (−9%) |
+| Gather, chunked, 1024-row stack buffer | 6.96 (−9%) | 5.49 (+6%) | 4.29 (+17%) |
+| Gather, chunked, 2048 | 7.07 (−7%) | 5.54 (+7%) | 4.28 (+17%) |
+| Gather, chunked, 8192 | 6.99 (−8%) | 5.49 (+6%) | 4.22 (+15%) |
+
+**Verdict: keep inline.**
+
+- Whole-table gather is 9–15% faster, but its selection vector is
+  `4 B × 4,032,180 = 16 MB` per request. The shipped code's `reserve(n_rows/10)`
+  was sized precisely to keep per-request transient memory near 3 MB under 50
+  concurrent clients; 16 MB × 50 is 800 MB. The win doesn't pay for that.
+- Chunked gather — the allocation-free form, and the shape vectorised engines
+  use — keeps the win only on the least selective group and is 6–17% *slower*
+  on the other two. Why chunking costs this much is **not investigated**
+  (candidates: the inner loop's trip count no longer being the table size, so
+  less unrolling; the push_back capacity check returning per chunk).
+- Most of whole-table gather's advantage is the **branch-free write**, not the
+  two-pass structure: InlineBranchless gets within 2–10% of Gather in the
+  isolated loops. If the filter is ever revisited, that is the change to try
+  first — single pass, no extra memory.
+
+### 2. Top lifters: row-oriented vs columnar
+
+| ms | M/Raw/SBD | F/Raw/SBD | F/Multi-ply/SBD |
+|---|---:|---:|---:|
+| AoS `vector<Lift>`, full sort (M1 baseline) | 203.0 | 107.6 | 22.5 |
+| SoA filter + full `std::sort` | 162.9 | 78.6 | 4.01 |
+| SoA filter + `partial_sort` + retry (shipped) | **7.61** | **5.19** | **3.67** |
+
+F/Raw/SBD: 107.6 → 5.19 ms, **20.7×** (the M2 Timer measurement was 19.6×).
+Attribution: layout 107.6 → 78.6 (1.4×), algorithm 78.6 → 5.19 (15×). The
+algorithm matters more the more rows match; at 0.19% selectivity there is
+almost nothing to sort and the two SoA rows nearly meet.
+
+### 3. Percentile: index vs scan
+
+F / Raw / SBD / 63 kg, total 500, n = 65,964.
+
+| | Time |
+|---|---:|
+| Scan the columns (filter group, count below) | 4.63 ms |
+| `PercentileIndex::percentile_of` (binary search) | **63.3 ns** |
+
+~73,000×. (§8 of decisons.md records 1.5 µs from an earlier one-shot Timer
+measurement; this harness repeats the call ~10M times. Not reconciled.)
+
+### 4. Conditional percentile (hero query)
+
+| | n | Time |
+|---|---:|---:|
+| M / Raw / SBD, squat 210 ± 2.5 → bench 140 | 38,298 | **8.78 ms** |
+| F / Raw / SBD, squat 300 → bench 150 (widens to ± 5: two scans) | 5 | 15.4 ms |
+
+The widening case costs 1.75× the normal one, for two full scans. Cause of
+the gap below 2× not investigated.
+
+---
+
+## DuckDB and Polars (`bench/compare.py`)
+
+DuckDB 2.0.0, Polars 2.0.0, Python 3.14, same machine, same CSV. Hot (data in
+memory), best of 20 after one discarded warm-up. The script exits if any
+answer differs from the engine's reconciled numbers (top 10 head and tail,
+`below=21079 n=38298`, `n=65964`), so every time below is for a correct answer.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install duckdb polars
+.venv/bin/python -I bench/compare.py --threads 1
+.venv/bin/python -I bench/compare.py
+```
+
+| ms | engine | DuckDB 1T | Polars 1T | DuckDB 8T | Polars 8T |
+|---|---:|---:|---:|---:|---:|
+| Top 10, one per lifter | **5.19** | 30.6 | 58.9 | 9.52 | 22.0 |
+| Conditional percentile | 8.78 | 13.7 | 8.93 | 4.97 | **2.42** |
+| Percentile (count in group) | **0.00006** / 4.63 scan | 12.2 | 9.45 | 4.40 | 2.47 |
+
+Fairness, both directions:
+
+- Filter columns are ENUM-encoded at load in both libraries, and `Place` is
+  reduced to a boolean at load, as the engine's parser does. **The first run
+  compared strings and made the engine look 2–7× better than it is** (e.g.
+  Polars 1T conditional 18.2 ms with strings, 8.93 ms with enums). That run is
+  not reported in the table.
+- The libraries' percentile query filters bodyweight `(57, 63]`; the engine
+  reads a precomputed `ipf_class`. Same rows, same n, slightly different work.
+- The libraries load only the 10 columns the queries touch; the engine loads
+  all 42. Load times (DuckDB ~0.75 s / Polars ~1.3 s at 8 threads) are **not
+  comparable** to the engine's 3.6 s and are not in the table.
+
+Reading:
+
+- Top 10 is the engine's everywhere: the libraries answer it with a full
+  group-by over ~1M names; the engine sorts 200 rows.
+- Single-threaded on a plain scan, the engine and Polars are level. The layout
+  advantage is shared — they're columnar too.
+- Multi-threaded, both libraries win scans: Polars 3.6× on the hero query.
+  The engine is one core per query; parallelising the scan is the next lever.
+
+### Prediction vs reality
+
+No magnitude was predicted in writing before these runs, so none is scored.
