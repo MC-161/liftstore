@@ -10,13 +10,13 @@
 
 namespace engine {
     namespace {
-        struct ScanResult { std::size_t below = 0; std::size_t n = 0; };
+        struct ScanResult { std::size_t below = 0; std::size_t n = 0; std::vector<float> targets; };
 
         ScanResult scan_pop( const ColumnStore& store,
         Sex sex, Equipment equipment, Event event,
         LiftKind condition_lift, float condition_value,
         LiftKind target_lift,    float target_value,
-        float tol) {
+        float tol, std::optional<std::uint8_t> ipf_class) {
 
             ScanResult r;
             const std::vector<float>& cond_col = column_of(store, condition_lift);
@@ -26,6 +26,7 @@ namespace engine {
                 if (store.place_code[i] != PlaceCode::Placed || store.equipment[i] != equipment || store.event[i] != event || store.sex[i] != sex) {
                     continue;
                 }
+                if (ipf_class && store.ipf_class[i] != *ipf_class) { continue; }
 
                 const float row_cv = cond_col[i];   // their squat ex
                 if (is_missing(row_cv) ||
@@ -36,6 +37,7 @@ namespace engine {
                 if (is_missing(row_tv)) { continue; }
 
                 ++r.n;
+                r.targets.push_back(row_tv);
                 if (row_tv < target_value) { ++r.below; }   // STRICTLY below
             }
 
@@ -225,23 +227,36 @@ namespace engine {
         Sex sex, Equipment equipment, Event event,
         LiftKind condition_lift, float condition_value,
         LiftKind target_lift,    float target_value,
-        float tol , std::size_t min_n ) {
+        float tol , std::size_t min_n, std::optional<std::uint8_t> ipf_class ) {
 
         ConditionalResult res;
 
-
-        // helper function scans once at a given tolerance and return { below , n }
-        ScanResult r = scan_pop(store, sex, equipment, event,
-                        condition_lift, condition_value,
-                        target_lift, target_value, tol);
+        // One group: scan at tol, widen once to 2 x tol if the sample is too small.
         float used = tol;
+        const auto run = [&](std::optional<std::uint8_t> cls) {
+            used = tol;
+            ScanResult s = scan_pop(store, sex, equipment, event, condition_lift, condition_value,
+                                    target_lift, target_value, tol, cls);
+            if (s.n < min_n) {
+                used = tol * 2.0f;
+                s = scan_pop(store, sex, equipment, event, condition_lift, condition_value,
+                             target_lift, target_value, used, cls);
+            }
+            return s;
+        };
 
-        // widen once if the sample is too small
-        if (r.n < min_n) {
-            used = tol * 2.0f;
-            r = scan_pop(store, sex, equipment, event,
-                     condition_lift, condition_value,
-                     target_lift, target_value, used);
+        // "Lifters your size" first. Too few even widened: fall back to every
+        // class, and say so in all_classes rather than answer from a handful.
+        ScanResult r;
+        if (ipf_class) {
+            r = run(ipf_class);
+            res.all_classes = false;
+            if (r.n < min_n) {
+                r = run(std::nullopt);
+                res.all_classes = true;
+            }
+        } else {
+            r = run(std::nullopt);
         }
 
         res.n = r.n;
@@ -249,6 +264,28 @@ namespace engine {
         res.tol_used = used;
         res.found = (r.n > 0);
         res.percentile = (r.n > 0) ? 100.0 * double(r.below) / double(r.n) : 0.0;
+        if (r.n > 0) {
+            // nth_element, not a sort: one order statistic out of up to ~40k.
+            const auto mid = r.targets.begin() + static_cast<std::ptrdiff_t>(rank_index_at(r.n, 50.0));
+            std::nth_element(r.targets.begin(), mid, r.targets.end());
+            res.target_median = *mid;
+
+            // 5 kg bins by direct index, as in attempts().
+            constexpr float kWidth = 5.0f;
+            const auto [lo_it, hi_it] = std::minmax_element(r.targets.begin(), r.targets.end());
+            const float first_edge = std::floor(*lo_it / kWidth) * kWidth;
+            const auto bin_count = static_cast<std::size_t>(std::floor((*hi_it - first_edge) / kWidth)) + 1;
+            std::vector<std::size_t> counts(bin_count, 0);
+            for (const float v : r.targets) {
+                const auto idx = static_cast<std::size_t>((v - first_edge) / kWidth);
+                ++counts[idx < bin_count ? idx : bin_count - 1];
+            }
+            res.target_bins.reserve(bin_count);
+            for (std::size_t b = 0; b < bin_count; ++b) {
+                res.target_bins.push_back({first_edge + static_cast<float>(b) * kWidth,
+                                           first_edge + static_cast<float>(b + 1) * kWidth, counts[b]});
+            }
+        }
 
         return res;
 }

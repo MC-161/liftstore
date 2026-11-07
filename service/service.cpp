@@ -549,10 +549,21 @@ namespace  engine {
                                 "target_value must be between 0 and 2000 kg");
         }
 
+        std::optional<std::uint8_t> cls;
+        if (request->has_ipf_class()) {
+            if (request->ipf_class() >= kIpfClassCount) {
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                    "ipf_class " + std::to_string(request->ipf_class()) +
+                                    " out of range (0.." + std::to_string(kIpfClassCount - 1) + ")");
+            }
+            cls = static_cast<std::uint8_t>(request->ipf_class());
+        }
+
         // ---- call domain ----
         const auto res = conditional_percentile(store_, *sex, *equipment, *event,
                                                 *condition_lift, condition_value,
-                                                *target_lift,    target_value);
+                                                *target_lift,    target_value,
+                                                2.5f, 500, cls);
 
         // ---- fill response ----
 
@@ -560,6 +571,14 @@ namespace  engine {
         response->set_below(static_cast<std::uint32_t>(res.below));
         response->set_n(static_cast<std::uint32_t>(res.n));
         response->set_tol_used(res.tol_used);
+        response->set_target_median(res.target_median);
+        response->set_all_classes(res.all_classes);
+        for (const HistBin& b : res.target_bins) {
+            v1::Bin* out = response->add_target_bins();
+            out->set_low(b.low);
+            out->set_high(b.high);
+            out->set_count(static_cast<std::uint32_t>(b.count));
+        }
 
         return grpc::Status::OK;
     }

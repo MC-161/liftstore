@@ -16,6 +16,16 @@ namespace engine {
         std::size_t below      = 0;
         std::size_t n          = 0;
         float       tol_used   = 0.0f;    // the tolerance that produced n
+        // Median of the TARGET lift across the n results: the scale for the
+        // percentile ("0.3rd percentile" means nothing until you see that the
+        // group's median bench is 120 kg). Nearest-rank, via rank_index_at.
+        float       target_median = 0.0f;
+        // True when the group spans every weight class: no class was asked
+        // for, or the class held fewer than min_n results even at 2 x tol.
+        bool        all_classes   = true;
+        // The target lift across the n results, in 5 kg bins: the strip chart
+        // under the verdict, so "less than all of them" can be seen.
+        std::vector<HistBin> target_bins;
     };
 
     struct AttemptsResult {
@@ -81,7 +91,8 @@ namespace engine {
         Sex sex, Equipment equipment, Event event,
         LiftKind condition_lift, float condition_value,
         LiftKind target_lift,    float target_value,
-        float tol = 2.5f, std::size_t min_n = 500);
+        float tol = 2.5f, std::size_t min_n = 500,
+        std::optional<std::uint8_t> ipf_class = std::nullopt);
 
     // Placed rows with a total, and their distinct federations. Each filter is
     // optional: nullopt matches everything.

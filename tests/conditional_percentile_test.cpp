@@ -103,6 +103,54 @@ TEST(ConditionalPercentile, MatchesAwkReference) {
 }
 
 
+// The scale shown under the verdict sentence. awk over the same window:
+//   ... $15>=207.5 && $15<=212.5 && $20!="" {print $20+0} | sort -n
+//   -> element int(0.5 * 38298) = 135 kg (nearest rank, like rank_index_at).
+// And the case from the screen that read "0th percentile": 17 of 41,243.
+TEST(ConditionalPercentile, TargetMedianMatchesAwk) {
+    if (!std::filesystem::exists(kDataset)) {
+        GTEST_SKIP() << "full dataset not present: " << kDataset;
+    }
+    const auto hero = engine::conditional_percentile(
+        dataset(), engine::Sex::M, engine::Equipment::Raw, engine::Event::SBD,
+        engine::LiftKind::Squat, 210.0f, engine::LiftKind::Bench, 140.0f);
+    EXPECT_FLOAT_EQ(hero.target_median, 135.0f);
+
+    const auto low = engine::conditional_percentile(
+        dataset(), engine::Sex::M, engine::Equipment::Raw, engine::Event::SBD,
+        engine::LiftKind::Deadlift, 200.0f, engine::LiftKind::Bench, 60.0f);
+    EXPECT_EQ(low.below, 17u);
+    EXPECT_EQ(low.n, 41243u);
+    EXPECT_FLOAT_EQ(low.target_median, 115.0f);
+    EXPECT_TRUE(low.all_classes);
+}
+
+// Within the class ("lifters your size"). awk, adding 59 < BodyweightKg <= 66
+// (men's 66 kg, index 2): n = 3272, none below 60, median 105.
+TEST(ConditionalPercentile, WithinClassMatchesAwk) {
+    if (!std::filesystem::exists(kDataset)) {
+        GTEST_SKIP() << "full dataset not present: " << kDataset;
+    }
+    const auto r = engine::conditional_percentile(
+        dataset(), engine::Sex::M, engine::Equipment::Raw, engine::Event::SBD,
+        engine::LiftKind::Deadlift, 200.0f, engine::LiftKind::Bench, 60.0f, 2.5f, 500, 2);
+    EXPECT_FALSE(r.all_classes);
+    EXPECT_EQ(r.n, 3272u);
+    EXPECT_EQ(r.below, 0u);
+    EXPECT_FLOAT_EQ(r.target_median, 105.0f);
+
+    std::size_t binned = 0;
+    for (const auto& b : r.target_bins) { binned += b.count; }
+    EXPECT_EQ(binned, r.n);                 // the strip chart shows everyone
+
+    // A combination too rare for the class falls back to all classes.
+    const auto rare = engine::conditional_percentile(
+        dataset(), engine::Sex::F, engine::Equipment::Raw, engine::Event::SBD,
+        engine::LiftKind::Squat, 300.0f, engine::LiftKind::Bench, 150.0f, 2.5f, 500, 4);
+    EXPECT_TRUE(rare.all_classes);
+}
+
+
 // Spec 2.2: value_at_percentile clamps both ways. The service rejects p = 0
 // (proto3 can't tell it from unset), so the minimum end is only reachable here.
 // 70.0 and 582.5 are the group's min and max, already pinned by q4.sh and q5.sh.

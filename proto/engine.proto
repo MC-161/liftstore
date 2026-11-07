@@ -109,6 +109,9 @@ message ConditionalPercentileRequest {
     float     condition_value = 5;
     LiftKind  target_lift     = 6;
     float     target_value    = 7;
+    // Set: compare within this class, falling back to all classes if it holds
+    // too few results. Unset: all classes (the original Q2).
+    optional uint32 ipf_class = 8;
 }
 
 message ConditionalPercentileResponse {
@@ -116,6 +119,9 @@ message ConditionalPercentileResponse {
     uint32 below      = 2;
     uint32 n          = 3;
     float  tol_used   = 4;
+    float  target_median = 5;     // median target lift across the n results
+    bool   all_classes   = 6;     // the group spans every class (none asked, or fell back)
+    repeated Bin target_bins = 7; // target lift across the n results, 5 kg bins
 }
 
 

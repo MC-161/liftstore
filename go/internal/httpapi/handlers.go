@@ -76,6 +76,11 @@ func (a *API) conditionalPercentile(w http.ResponseWriter, r *http.Request) {
 		TargetLift:     p.lift("target_lift"),
 		TargetValue:    p.f32("target_value"),
 	}
+	// optional on the wire: absent means all classes, and 0 is a real class.
+	if p.q.Has("ipf_class") {
+		c := p.u32("ipf_class")
+		req.IpfClass = &c
+	}
 	if p.err != nil { badRequest(w, p.err.Error()); return }
 	a.call(w, r, func(ctx context.Context) (proto.Message, error) {
 		return a.engine.ConditionalPercentile(ctx, req)
