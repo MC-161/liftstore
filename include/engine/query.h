@@ -49,6 +49,12 @@ namespace engine {
         double      sd_delta    = 0.0;
         std::size_t improved    = 0;
         std::vector<HistBin> bins;
+        // Bodyweight side of the same transitions. per_bw_kg is the median of
+        // (total delta / bodyweight delta) over transitions whose bodyweight
+        // moved at least 1 kg -- what a kg of bodyweight is worth in total.
+        std::size_t bw_transitions    = 0;
+        float       median_bw_delta   = 0.0f;
+        float       median_per_bw_kg  = 0.0f;
     };
 
 

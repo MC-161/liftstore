@@ -135,9 +135,10 @@ message GroupSummary {
 }
 
 message Bin {
-    float  low   = 1;             // [low, high)  -- half-open, everywhere
-    float  high  = 2;
-    uint32 count = 3;
+    float  low       = 1;         // [low, high)  -- half-open, everywhere
+    float  high      = 2;
+    uint32 count     = 3;
+    uint32 successes = 4;         // Attempts only: how many of `count` made it
 }
 
 message SigmaMark {
@@ -241,6 +242,9 @@ message ClassChangeResponse {
     uint32       improved         = 4;
     repeated Bin delta_bins       = 5;
     uint32       transitions      = 6;   // observations; always >= lifters
+    float        median_bw_delta  = 7;   // kg of bodyweight, signed
+    float        median_total_per_bw_kg = 8;   // median of total delta / bw delta
+    uint32       bw_transitions   = 9;   // transitions with |bw delta| >= 1 kg
 }
 
 // ---------- Q8 ----------

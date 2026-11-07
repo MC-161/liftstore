@@ -12,7 +12,9 @@ enum class Event : std::uint8_t { SBD, B, D, BD, S, SB, SD };
 
 enum class LiftKind : std::uint8_t { Squat, Bench, Deadlift, Total };
 
-struct HistBin { float low; float high; std::size_t count; };   // [low, high)
+// [low, high). `successes` is filled only where a bin has an outcome (attempts:
+// how many of `count` made the third attempt); elsewhere it stays 0.
+struct HistBin { float low; float high; std::size_t count; std::size_t successes = 0; };
 
 // The convention: nearest-rank, flooring. ONE definition of "percentile p" for
 // the whole codebase -- Q5, Q11 and anything later all go through this.

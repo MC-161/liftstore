@@ -6,6 +6,7 @@
 
 #include "engine/column_store.h"
 #include "engine/lift.h"
+#include "engine/percentile.h"
 #include "engine/query.h"
 
 namespace {
@@ -100,3 +101,23 @@ TEST(ConditionalPercentile, MatchesAwkReference) {
                                / static_cast<double>(c.want_n));
     }
 }
+
+
+// Spec 2.2: value_at_percentile clamps both ways. The service rejects p = 0
+// (proto3 can't tell it from unset), so the minimum end is only reachable here.
+// 70.0 and 582.5 are the group's min and max, already pinned by q4.sh and q5.sh.
+TEST(ValueAtPercentile, ClampsToGroupMinAndMax) {
+    if (!std::filesystem::exists(kDataset)) {
+        GTEST_SKIP() << "full dataset not present: " << kDataset;
+    }
+    const engine::PercentileIndex ix(dataset());
+    const auto at = [&](double p) {
+        return ix.value_at_percentile(engine::Sex::F, engine::Equipment::Raw,
+                                      engine::Event::SBD, 4, engine::LiftKind::Total, p);
+    };
+    EXPECT_FLOAT_EQ(at(0.0).value, 70.0f);
+    EXPECT_FLOAT_EQ(at(100.0).value, 582.5f);
+    EXPECT_DOUBLE_EQ(at(0.0).actual_percentile, 0.0);   // nothing strictly below the min
+    EXPECT_EQ(at(50.0).n, 65964u);
+}
+

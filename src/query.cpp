@@ -62,7 +62,14 @@ namespace engine {
             std::uint32_t date;     // yyyymmdd
             std::uint8_t  cls;
             float         total;
+            float         bw;       // never missing: a class implies a bodyweight
         };
+
+        // Sorts in place. Same nearest-rank convention as everything else.
+        float median_of(std::vector<float>& v) {
+            std::sort(v.begin(), v.end());
+            return value_at(v, 50.0);
+        }
 
         // Months between two yyyymmdd dates. Signed arithmetic deliberately.
         int months_between(std::uint32_t a, std::uint32_t b) {
@@ -280,6 +287,7 @@ AttemptsResult attempts(const ColumnStore &store, Sex sex, Equipment equipment, 
 
     // ---- pass 1: collect every jump ----
     std::vector<float> jumps;
+    std::vector<std::uint8_t> made;     // parallel to jumps: third attempt succeeded
     double sum = 0.0;
 
     for (std::size_t i = 0; i < store.size(); ++i) {
@@ -302,6 +310,7 @@ AttemptsResult attempts(const ColumnStore &store, Sex sex, Equipment equipment, 
         const float jump = std::fabs(v3) - std::fabs(v2);
 
         jumps.push_back(jump);
+        made.push_back(v3 > 0.0f ? 1 : 0);
         sum += jump;                                   // DOUBLE accumulator
         if (v3 > 0.0f) { ++r.third_success; }
     }
@@ -328,19 +337,24 @@ AttemptsResult attempts(const ColumnStore &store, Sex sex, Equipment equipment, 
     const auto  bin_count  = static_cast<std::size_t>(
                                  std::floor((r.max_jump - first_edge) / bin_width)) + 1;
 
+    // Success counted in the same pass as the bin count, so the two can't be
+    // binned differently: a bin's success rate is successes / count.
     std::vector<std::size_t> counts(bin_count, 0);
-    for (const float j : jumps) {
+    std::vector<std::size_t> successes(bin_count, 0);
+    for (std::size_t k = 0; k < jumps.size(); ++k) {
         // (j - first_edge) is >= 0 because first_edge <= min_jump. Cast only
         // after that is guaranteed -- a negative intermediate wraps to ~1.8e19.
-        const auto idx = static_cast<std::size_t>((j - first_edge) / bin_width);
-        ++counts[idx < bin_count ? idx : bin_count - 1];
+        const auto raw = static_cast<std::size_t>((jumps[k] - first_edge) / bin_width);
+        const std::size_t idx = raw < bin_count ? raw : bin_count - 1;
+        ++counts[idx];
+        successes[idx] += made[k];
     }
 
     r.bins.reserve(bin_count);
     for (std::size_t b = 0; b < bin_count; ++b) {
         r.bins.push_back({first_edge + static_cast<float>(b)     * bin_width,
                           first_edge + static_cast<float>(b + 1) * bin_width,
-                          counts[b]});
+                          counts[b], successes[b]});
     }
 
     return r;
@@ -505,7 +519,8 @@ ClassChangeResult class_change(const ColumnStore& store, Sex sex, Equipment equi
         const float v = col[i];
         if (is_missing(v)) { continue; }
 
-        rows.push_back({store.name[i], store.date[i], store.ipf_class[i], v});
+        rows.push_back({store.name[i], store.date[i], store.ipf_class[i], v,
+                        store.bodyweight_kg[i]});
     }
 
     // ---- group by lifter, ordered within each lifter by date ----
@@ -515,6 +530,8 @@ ClassChangeResult class_change(const ColumnStore& store, Sex sex, Equipment equi
     });
 
     std::vector<float> deltas;
+    std::vector<float> bw_deltas;
+    std::vector<float> per_bw_kg;
     std::size_t i = 0;
     while (i < rows.size()) {
         const std::uint32_t name = rows[i].name;
@@ -534,6 +551,11 @@ ClassChangeResult class_change(const ColumnStore& store, Sex sex, Equipment equi
             deltas.push_back(d);
             if (d > 0.0f) { ++r.improved; }
             contributed = true;
+
+            // Under 1 kg of bodyweight change, d / dbw explodes and says nothing.
+            const float dbw = rows[k + 1].bw - rows[k].bw;
+            bw_deltas.push_back(dbw);
+            if (std::fabs(dbw) >= 1.0f) { per_bw_kg.push_back(d / dbw); }
         }
         if (contributed) { ++r.lifters; }
 
@@ -553,6 +575,10 @@ ClassChangeResult class_change(const ColumnStore& store, Sex sex, Equipment equi
         ss += dv * dv;
     }
     r.sd_delta = std::sqrt(ss / static_cast<double>(r.transitions));
+
+    r.median_bw_delta = median_of(bw_deltas);
+    r.bw_transitions  = per_bw_kg.size();
+    if (!per_bw_kg.empty()) { r.median_per_bw_kg = median_of(per_bw_kg); }
 
     // ---- bins by direct index, as in attempts() ----
     const auto [lo_it, hi_it] = std::minmax_element(deltas.begin(), deltas.end());

@@ -685,7 +685,10 @@ namespace  engine {
         if (res.transitions > 0) {
             response->set_mean_total_delta(static_cast<float>(res.mean_delta));
             response->set_sd_total_delta(static_cast<float>(res.sd_delta));
+            response->set_median_bw_delta(res.median_bw_delta);
+            response->set_median_total_per_bw_kg(res.median_per_bw_kg);
         }
+        response->set_bw_transitions(static_cast<std::uint32_t>(res.bw_transitions));
 
         for (const HistBin& b : res.bins) {
             v1::Bin* out = response->add_delta_bins();
@@ -749,6 +752,7 @@ namespace  engine {
             out->set_low(b.low);
             out->set_high(b.high);
             out->set_count(static_cast<std::uint32_t>(b.count));
+            out->set_successes(static_cast<std::uint32_t>(b.successes));
         }
 
         return grpc::Status::OK;
