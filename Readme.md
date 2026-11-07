@@ -180,6 +180,22 @@ grpcurl -plaintext -import-path proto -proto engine.proto -d @ \
 > `n` comes back with every percentile. A percentile over five people isn't
 > wrong, it's *meaningless*, and only `n` tells you which one you're looking at.
 
+The frontend (Vite + React + TypeScript, in `web/`) talks to the Go gateway,
+which talks to the engine:
+
+```bash
+cd go && go run ./cmd/api            # HTTP/JSON gateway on :8080
+cd web && npm install && npm run dev # http://localhost:5173, /api proxied to :8080
+```
+
+Seven screens: Entry, Verdict, Weight Class, Attempts, Head to Head, Leaderboards and a share card. Set
+`VITE_PUBLIC_URL` in `web/.env` (see `web/.env.example`) to the deployed address: the
+share card's link and QR code point there. Unset, in development the QR code points at this
+machine's LAN address (the dev server listens on the network), so a phone on the same Wi-Fi
+can scan it. Types
+are generated from `proto/engine.proto` (`npm run gen`), and every slider is
+local: the distribution's bins are the CDF, so dragging makes no requests.
+
 Full dataset: the bulk CSV from
 [openpowerlifting.org/data](https://openpowerlifting.org/data), into `data/`.
 Debug builds run under AddressSanitizer and UndefinedBehaviorSanitizer.
@@ -232,6 +248,7 @@ apps/             CLI and server
 go/               HTTP/JSON gateway (stateless; every number comes from the engine)
 tests/            reference tests, each citing its awk command
 bench/            Google Benchmark suite + DuckDB/Polars comparison
+web/              frontend (Vite + React + TS), types generated from the proto
 docs/             demo tapes — every GIF regenerable with `vhs docs/*.tape`
 ```
 
@@ -253,7 +270,8 @@ write happens before any reader exists.
 | ✅ | distribution · nearest · class sweep · trends · attempts · equipment swap · class change |
 | ✅ | Go HTTP/JSON gateway, parity-tested against gRPC on every endpoint |
 | ✅ | Google Benchmark suite · DuckDB / Polars comparison |
-| 📋 | frontend — specified, not yet built |
+| ✅ | frontend: Entry · Verdict · Weight Class · Attempts · Head to Head · Leaderboards · share card ([spec](docs/frontend-spec.md)) |
+| 📋 | Explore (needs a query parser) · name search |
 
 ---
 
