@@ -180,21 +180,40 @@ grpcurl -plaintext -import-path proto -proto engine.proto -d @ \
 > `n` comes back with every percentile. A percentile over five people isn't
 > wrong, it's *meaningless*, and only `n` tells you which one you're looking at.
 
-The frontend (Vite + React + TypeScript, in `web/`) talks to the Go gateway,
-which talks to the engine:
+The frontend (Vite + React + TypeScript, in `web/`) talks to a Go HTTP/JSON gateway, which
+talks to the engine over gRPC. Generated code isn't committed, so the gateway needs its
+protobuf code generated once (and again after any change to `proto/engine.proto`):
 
 ```bash
-cd go && go run ./cmd/api            # HTTP/JSON gateway on :8080
+# once: the Go protobuf plugins (protoc itself: brew install protobuf)
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+cd go
+mkdir -p gen/engine/v1
+protoc --proto_path=../proto \
+  --go_out=gen/engine/v1 --go_opt=paths=source_relative \
+  --go_opt=Mengine.proto=github.com/MC-161/liftstore/gen/engine/v1 \
+  --go-grpc_out=gen/engine/v1 --go-grpc_opt=paths=source_relative \
+  --go-grpc_opt=Mengine.proto=github.com/MC-161/liftstore/gen/engine/v1 \
+  ../proto/engine.proto
+go run ./cmd/api                     # gateway on :8080, engine expected on :50051
+```
+
+```bash
 cd web && npm install && npm run dev # http://localhost:5173, /api proxied to :8080
 ```
 
-Seven screens: Entry, Verdict, Weight Class, Attempts, Head to Head, Leaderboards and a share card. Set
-`VITE_PUBLIC_URL` in `web/.env` (see `web/.env.example`) to the deployed address: the
-share card's link and QR code point there. Unset, in development the QR code points at this
-machine's LAN address (the dev server listens on the network), so a phone on the same Wi-Fi
-can scan it. Types
-are generated from `proto/engine.proto` (`npm run gen`), and every slider is
-local: the distribution's bins are the CDF, so dragging makes no requests.
+The frontend's TypeScript types are generated from the same proto with `npm run gen` (needs
+[`buf`](https://buf.build/docs/installation)); they are committed, so only run it after a
+proto change.
+
+Seven screens: Entry, Verdict, Weight Class, Attempts, Head to Head, Leaderboards and a
+share card. Every slider is local: the distribution's bins are the CDF, so dragging makes no
+requests. Set `VITE_PUBLIC_URL` in `web/.env` (see `web/.env.example`) to the deployed
+address and the share card's link and QR code point there. Unset, in development the QR code
+points at this machine's LAN address (the dev server listens on the network), so a phone on
+the same Wi-Fi can scan it.
 
 Full dataset: the bulk CSV from
 [openpowerlifting.org/data](https://openpowerlifting.org/data), into `data/`.
