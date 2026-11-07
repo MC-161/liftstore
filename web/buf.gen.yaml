@@ -1,0 +1,10 @@
+# Types for the frontend, generated from the one proto the engine and the
+# gateway are built from -- so a renamed or removed field is a compile error
+# here, not an undefined at runtime. `npm run gen` after any engine.proto edit.
+version: v2
+inputs:
+  - directory: ../proto
+plugins:
+  - local: node_modules/.bin/protoc-gen-es
+    out: src/gen
+    opt: target=ts
