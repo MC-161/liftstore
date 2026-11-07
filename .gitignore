@@ -26,6 +26,8 @@
 
 # Fortran module files
 *.mod
+# ...but not Go's module file, which the gateway needs to build from a clone
+!go/go.mod
 *.smod
 
 # Compiled Static libraries
