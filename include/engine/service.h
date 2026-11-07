@@ -155,6 +155,14 @@ public:
                                    const v1::ValueAtPercentileRequest*,
                                    v1::ValueAtPercentileResponse*) override;
 
+    grpc::Status Leaderboard(grpc::ServerContext*,
+                             const v1::LeaderboardRequest*,
+                             v1::LeaderboardResponse*) override;
+
+    grpc::Status LifterByName(grpc::ServerContext*,
+                              const v1::LifterByNameRequest*,
+                              v1::LifterByNameResponse*) override;
+
     grpc::Status DatasetStats(grpc::ServerContext*,
                               const v1::DatasetStatsRequest*,
                               v1::DatasetStatsResponse*) override;

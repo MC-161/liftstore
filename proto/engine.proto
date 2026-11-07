@@ -16,6 +16,8 @@ service Engine {
     rpc Attempts       (AttemptsRequest)       returns (AttemptsResponse);
     rpc ValueAtPercentile (ValueAtPercentileRequest) returns (ValueAtPercentileResponse);
     rpc DatasetStats   (DatasetStatsRequest)   returns (DatasetStatsResponse);
+    rpc Leaderboard    (LeaderboardRequest)    returns (LeaderboardResponse);
+    rpc LifterByName   (LifterByNameRequest)   returns (LifterByNameResponse);
 }
 
 enum Sex {
@@ -293,4 +295,102 @@ message DatasetStatsRequest {
 message DatasetStatsResponse {
     uint32 results     = 1;   // placed rows with a total: the population queries rank
     uint32 federations = 2;   // distinct federations among those rows
+}
+
+// ---------- Leaderboards ----------
+
+enum Metric {
+    METRIC_UNSPECIFIED = 0;
+    METRIC_KG          = 1;
+    METRIC_PERCENTILE  = 2;
+}
+
+enum Combine {
+    COMBINE_NONE  = 0;          // score = a; the zero value is a real choice here
+    COMBINE_MINUS = 1;
+    COMBINE_PLUS  = 2;
+    COMBINE_RATIO = 3;
+}
+
+enum RankPreset {
+    RANK_PRESET_UNSPECIFIED = 0;
+    RANK_PRESET_TOP_TOTAL   = 1;
+    RANK_PRESET_DOTS        = 2;
+    RANK_PRESET_BALANCED    = 3;  // smallest spread of the three lift percentiles
+    RANK_PRESET_CUSTOM      = 4;  // a [combine b], ordered by `ascending`
+}
+
+message Operand {
+    LiftKind lift   = 1;
+    Metric   metric = 2;
+}
+
+message LeaderboardRequest {
+    GroupKey   key       = 1;
+    RankPreset preset    = 2;
+    Operand    a         = 3;
+    Combine    combine   = 4;
+    Operand    b         = 5;
+    bool       ascending = 6;
+    uint32     limit     = 7;     // 0 => 10; max 100
+    // "Where would you rank": all four set, or none.
+    float      you_squat      = 8;
+    float      you_bench      = 9;
+    float      you_deadlift   = 10;
+    float      you_bodyweight = 11;
+    // Off by default = filter ON: lines where one lift is under 15% of the
+    // total are dropped and counted in `hidden`.
+    bool       include_implausible = 12;
+}
+
+message LeaderRow {
+    uint32 rank         = 1;
+    string name         = 2;
+    float  squat        = 3;
+    float  bench        = 4;
+    float  deadlift     = 5;
+    float  total        = 6;
+    float  bodyweight   = 7;
+    float  dots         = 8;
+    double squat_pct    = 9;
+    double bench_pct    = 10;
+    double deadlift_pct = 11;
+    double total_pct    = 12;
+    double score        = 13;
+    string date         = 14;
+    string federation   = 15;
+}
+
+message LeaderboardResponse {
+    uint32             lifters  = 1;  // lifters ranked (complete S/B/D in the class)
+    repeated LeaderRow rows     = 2;
+    reserved 3;                       // was has_you: clashes with C++'s generated has_you()
+    LeaderRow          you      = 4;  // set only when you_* were sent; rank = where you'd place
+    string             weight_class = 5;
+    uint32             hidden   = 6;  // lifters dropped as implausible (0 when included)
+}
+
+// ---------- Head to Head ----------
+
+message LifterByNameRequest {
+    string    name      = 1;      // exact, as the dataset spells it
+    Sex       sex       = 2;
+    Equipment equipment = 3;
+    Event     event     = 4;
+    optional uint32 ipf_class = 5;  // set: best result IN this class; unset: any class
+}
+
+message LifterByNameResponse {
+    string name         = 1;
+    float  squat        = 2;
+    float  bench        = 3;
+    float  deadlift     = 4;
+    float  total        = 5;
+    float  bodyweight   = 6;
+    float  dots         = 7;
+    string date         = 8;
+    string federation   = 9;
+    string meet         = 10;
+    string weight_class = 11;     // the class of THAT result
+    uint32 results      = 12;     // their placed results in the category
 }

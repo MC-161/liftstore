@@ -34,3 +34,13 @@ summary() {
     if [ "$FAILED" -eq 0 ]; then echo "all passed"; else echo "$FAILED failed"; fi
     exit "$FAILED"
 }
+notfound() {  # $1 label, $2 method, $3 payload -- expects NOT_FOUND
+    if "${G[@]}" -d "$3" "$HOST" "engine.v1.Engine/$2" >/dev/null 2>"$TMP.err"; then
+        printf '  FAIL  %s (found)\n' "$1"; FAILED=$((FAILED + 1))
+    elif grep -q 'NotFound' "$TMP.err"; then
+        printf '  PASS  %s\n' "$1"
+    else
+        printf '  FAIL  %s (wrong status)\n' "$1"
+        sed 's/^/        /' "$TMP.err"; FAILED=$((FAILED + 1))
+    fi
+}

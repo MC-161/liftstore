@@ -54,6 +54,10 @@ parity "value-at-percentile" ValueAtPercentile \
        "/api/value-at-percentile?$FQ&bodyweight=62&lift=LIFT_KIND_TOTAL&percentile=95"
 parity "dataset-stats" DatasetStats "{$FLAT}" "/api/dataset-stats?$FQ"
 parity "dataset-stats, no filter" DatasetStats '{}' "/api/dataset-stats"
+parity "leaderboard" Leaderboard \
+       "$KEY,\"preset\":\"RANK_PRESET_CUSTOM\",\"a\":{\"lift\":\"LIFT_KIND_DEADLIFT\",\"metric\":\"METRIC_PERCENTILE\"},\"combine\":\"COMBINE_MINUS\",\"b\":{\"lift\":\"LIFT_KIND_SQUAT\",\"metric\":\"METRIC_PERCENTILE\"},\"youSquat\":60,\"youBench\":40,\"youDeadlift\":90,\"youBodyweight\":62}" \
+       "/api/leaderboard?$Q&preset=RANK_PRESET_CUSTOM&a_lift=LIFT_KIND_DEADLIFT&a_metric=METRIC_PERCENTILE&combine=COMBINE_MINUS&b_lift=LIFT_KIND_SQUAT&b_metric=METRIC_PERCENTILE&you_squat=60&you_bench=40&you_deadlift=90&you_bodyweight=62"
+parity "lifter" LifterByName "{$FLAT,\"name\":\"Tamara Walcott\"}" "/api/lifter?$FQ&name=Tamara%20Walcott"
 
 echo
 [ "$FAILED" -eq 0 ] && echo "all passed" || echo "$FAILED failed"

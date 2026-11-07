@@ -28,7 +28,6 @@ func writeProto(w http.ResponseWriter, r *http.Request, msg proto.Message) {
 	_, _ = w.Write(b)
 }
 
-
 // call runs the RPC under a timeout and writes either the proto or the mapped error.
 func (a *API) call(w http.ResponseWriter, r *http.Request,
 	fn func(context.Context) (proto.Message, error)) {
@@ -175,5 +174,50 @@ func (a *API) datasetStats(w http.ResponseWriter, r *http.Request) {
 	if p.err != nil { badRequest(w, p.err.Error()); return }
 	a.call(w, r, func(ctx context.Context) (proto.Message, error) {
 		return a.engine.DatasetStats(ctx, req)
+	})
+}
+
+func (a *API) leaderboard(w http.ResponseWriter, r *http.Request) {
+	p := newParams(r.URL.Query())
+	req := &enginev1.LeaderboardRequest{
+		Key:    p.groupKey(),
+		Preset: enginev1.RankPreset(p.enum(enginev1.RankPreset_value, "preset")),
+		A: &enginev1.Operand{
+			Lift:   p.lift("a_lift"),
+			Metric: enginev1.Metric(p.enum(enginev1.Metric_value, "a_metric")),
+		},
+		Combine: enginev1.Combine(p.enum(enginev1.Combine_value, "combine")),
+		B: &enginev1.Operand{
+			Lift:   p.lift("b_lift"),
+			Metric: enginev1.Metric(p.enum(enginev1.Metric_value, "b_metric")),
+		},
+		Ascending:          p.q.Get("ascending") == "true",
+		IncludeImplausible: p.q.Get("include_implausible") == "true",
+		Limit:              p.u32("limit"),
+		YouSquat:           p.f32("you_squat"),
+		YouBench:           p.f32("you_bench"),
+		YouDeadlift:        p.f32("you_deadlift"),
+		YouBodyweight:      p.f32("you_bodyweight"),
+	}
+	if p.err != nil { badRequest(w, p.err.Error()); return }
+	a.call(w, r, func(ctx context.Context) (proto.Message, error) {
+		return a.engine.Leaderboard(ctx, req)
+	})
+}
+
+func (a *API) lifterByName(w http.ResponseWriter, r *http.Request) {
+	p := newParams(r.URL.Query())
+	req := &enginev1.LifterByNameRequest{
+		Name: p.q.Get("name"),
+		Sex:  p.sex(), Equipment: p.equipment("equipment"), Event: p.event(),
+	}
+	// optional on the wire: absent means "any class", and 0 is a real class.
+	if p.q.Has("ipf_class") {
+		c := p.u32("ipf_class")
+		req.IpfClass = &c
+	}
+	if p.err != nil { badRequest(w, p.err.Error()); return }
+	a.call(w, r, func(ctx context.Context) (proto.Message, error) {
+		return a.engine.LifterByName(ctx, req)
 	})
 }

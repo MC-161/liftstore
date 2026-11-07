@@ -2,6 +2,7 @@
 #include "engine/service.h"
 
 #include "engine/ipf_class.h"
+#include "engine/leaderboard.h"
 #include "engine/query.h"
 
 
@@ -302,6 +303,203 @@ namespace  engine {
         response->set_results(static_cast<std::uint32_t>(res.results));
         response->set_federations(static_cast<std::uint32_t>(res.federations));
 
+        return grpc::Status::OK;
+    }
+
+
+    namespace {
+        constexpr std::uint32_t kDefaultBoard = 10;
+        constexpr std::uint32_t kMaxBoard     = 100;
+
+        void fill_line(v1::LeaderRow* out, const LifterLine& l) {
+            out->set_squat(l.squat);
+            out->set_bench(l.bench);
+            out->set_deadlift(l.deadlift);
+            out->set_total(l.total);
+            out->set_bodyweight(l.bodyweight);
+            out->set_dots(l.dots);
+            out->set_squat_pct(l.squat_pct);
+            out->set_bench_pct(l.bench_pct);
+            out->set_deadlift_pct(l.deadlift_pct);
+            out->set_total_pct(l.total_pct);
+            out->set_score(l.score);
+        }
+
+        std::optional<Metric> metric_of(v1::Metric m) {
+            switch (m) {
+                case v1::METRIC_KG:         return Metric::Kg;
+                case v1::METRIC_PERCENTILE: return Metric::Percentile;
+                case v1::METRIC_UNSPECIFIED:
+                default:                    return std::nullopt;
+            }
+        }
+    }
+
+    grpc::Status EngineService::Leaderboard(grpc::ServerContext*,
+                                            const v1::LeaderboardRequest* request,
+                                            v1::LeaderboardResponse* response) {
+        const v1::GroupKey& key = request->key();
+        const auto sex = from_proto(key.sex());
+        if (!sex) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "sex is required (got SEX_UNSPECIFIED)");
+        }
+        const auto equipment = from_proto(key.equipment());
+        if (!equipment) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "equipment is required (got EQUIPMENT_UNSPECIFIED)");
+        }
+        const auto event = from_proto(key.event());
+        if (!event) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "event is required (got EVENT_UNSPECIFIED)");
+        }
+        if (key.ipf_class() >= kIpfClassCount) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "ipf_class " + std::to_string(key.ipf_class()) +
+                                " out of range (0.." + std::to_string(kIpfClassCount - 1) + ")");
+        }
+        const auto cls = static_cast<std::uint8_t>(key.ipf_class());
+
+        const std::uint32_t limit = request->limit() == 0 ? kDefaultBoard : request->limit();
+        if (limit > kMaxBoard) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "limit " + std::to_string(limit) + " exceeds maximum " + std::to_string(kMaxBoard));
+        }
+
+        RankSpec spec;
+        switch (request->preset()) {
+            case v1::RANK_PRESET_TOP_TOTAL: spec.preset = Preset::TopTotal; break;
+            case v1::RANK_PRESET_DOTS:      spec.preset = Preset::Dots;     break;
+            case v1::RANK_PRESET_BALANCED:  spec.preset = Preset::Balanced; break;
+            case v1::RANK_PRESET_CUSTOM:    spec.preset = Preset::Custom;   break;
+            case v1::RANK_PRESET_UNSPECIFIED:
+            default:
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "preset is required (got RANK_PRESET_UNSPECIFIED)");
+        }
+
+        if (spec.preset == Preset::Custom) {
+            const auto a_lift = from_proto(request->a().lift());
+            const auto a_metric = metric_of(request->a().metric());
+            if (!a_lift || !a_metric) {
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "custom ranking needs a.lift and a.metric");
+            }
+            spec.a = {*a_lift, *a_metric};
+            switch (request->combine()) {
+                case v1::COMBINE_NONE:  spec.combine = Combine::None;  break;
+                case v1::COMBINE_MINUS: spec.combine = Combine::Minus; break;
+                case v1::COMBINE_PLUS:  spec.combine = Combine::Plus;  break;
+                case v1::COMBINE_RATIO: spec.combine = Combine::Ratio; break;
+                default:
+                    return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "unknown combine");
+            }
+            if (spec.combine != Combine::None) {
+                const auto b_lift = from_proto(request->b().lift());
+                const auto b_metric = metric_of(request->b().metric());
+                if (!b_lift || !b_metric) {
+                    return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                        "combine needs b.lift and b.metric");
+                }
+                spec.b = {*b_lift, *b_metric};
+            }
+            spec.ascending = request->ascending();
+        }
+        spec.plausible_only = !request->include_implausible();
+
+        // "You": all four or none. Half a lifter is a client bug, not "no you".
+        std::optional<YouInput> you;
+        const float ys = request->you_squat(), yb = request->you_bench(),
+                    yd = request->you_deadlift(), ybw = request->you_bodyweight();
+        const int set = (ys > 0.0f) + (yb > 0.0f) + (yd > 0.0f) + (ybw > 0.0f);
+        if (set == 4) {
+            if (ys > 2000.0f || yb > 2000.0f || yd > 2000.0f || ybw > 1000.0f) {
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "you_* values out of range");
+            }
+            you = YouInput{ys, yb, yd, ybw};
+        } else if (set != 0) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                "you_squat, you_bench, you_deadlift and you_bodyweight go together");
+        }
+
+        const auto res = leaderboard(store_, index_, *sex, *equipment, *event, cls, spec, limit, you);
+
+        response->set_lifters(static_cast<std::uint32_t>(res.lifters));
+        response->set_hidden(static_cast<std::uint32_t>(res.hidden));
+        response->set_weight_class(ipf_class_name(*sex, cls));
+        for (std::size_t k = 0; k < res.top.size(); ++k) {
+            const LifterLine& l = res.top[k];
+            v1::LeaderRow* out = response->add_rows();
+            out->set_rank(static_cast<std::uint32_t>(k + 1));
+            const std::string_view name = store_.name_dict.value(store_.name[l.row]);
+            const std::string_view fed  = store_.federation_dict.value(store_.federation[l.row]);
+            out->set_name(name.data(), name.size());
+            out->set_federation(fed.data(), fed.size());
+            out->set_date(format_date(store_.date[l.row]));
+            fill_line(out, l);
+        }
+        if (res.has_you) {
+            v1::LeaderRow* y = response->mutable_you();
+            y->set_rank(static_cast<std::uint32_t>(res.you_rank));
+            y->set_name("You");
+            fill_line(y, res.you);
+        }
+        return grpc::Status::OK;
+    }
+
+
+    grpc::Status EngineService::LifterByName(grpc::ServerContext*,
+                                             const v1::LifterByNameRequest* request,
+                                             v1::LifterByNameResponse* response) {
+        const auto sex = from_proto(request->sex());
+        if (!sex) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "sex is required (got SEX_UNSPECIFIED)");
+        }
+        const auto equipment = from_proto(request->equipment());
+        if (!equipment) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "equipment is required (got EQUIPMENT_UNSPECIFIED)");
+        }
+        const auto event = from_proto(request->event());
+        if (!event) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "event is required (got EVENT_UNSPECIFIED)");
+        }
+        if (request->name().empty()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "name is required");
+        }
+
+        std::optional<std::uint8_t> cls;
+        if (request->has_ipf_class()) {
+            if (request->ipf_class() >= kIpfClassCount) {
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                    "ipf_class " + std::to_string(request->ipf_class()) +
+                                    " out of range (0.." + std::to_string(kIpfClassCount - 1) + ")");
+            }
+            cls = static_cast<std::uint8_t>(request->ipf_class());
+        }
+
+        const std::uint32_t ix = store_.name_dict.find(request->name());
+        const LifterBest best = lifter_best(store_, ix, *sex, *equipment, *event, cls);
+        if (!best.found) {
+            // A person, not a group: absence is NOT_FOUND, unlike an empty class.
+            return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                ix == 0 ? "no lifter named \"" + request->name() + "\""
+                                : cls ? request->name() + " has no placed results in the " +
+                                        std::string(ipf_class_name(*sex, *cls)) + " kg class"
+                                      : request->name() + " has no placed results in this category");
+        }
+
+        const std::uint32_t i = best.row;
+        const std::string_view name = store_.name_dict.value(store_.name[i]);
+        const std::string_view fed  = store_.federation_dict.value(store_.federation[i]);
+        const std::string_view meet = store_.meet_name_dict.value(store_.meet_name[i]);
+        response->set_name(name.data(), name.size());
+        response->set_federation(fed.data(), fed.size());
+        response->set_meet(meet.data(), meet.size());
+        response->set_squat(is_missing(store_.best3_squat_kg[i]) ? 0.0f : store_.best3_squat_kg[i]);
+        response->set_bench(is_missing(store_.best3_bench_kg[i]) ? 0.0f : store_.best3_bench_kg[i]);
+        response->set_deadlift(is_missing(store_.best3_deadlift_kg[i]) ? 0.0f : store_.best3_deadlift_kg[i]);
+        response->set_total(store_.total_kg[i]);
+        response->set_bodyweight(is_missing(store_.bodyweight_kg[i]) ? 0.0f : store_.bodyweight_kg[i]);
+        response->set_dots(is_missing(store_.dots[i]) ? 0.0f : store_.dots[i]);
+        response->set_date(format_date(store_.date[i]));
+        response->set_weight_class(ipf_class_name(*sex, store_.ipf_class[i]));
+        response->set_results(static_cast<std::uint32_t>(best.results));
         return grpc::Status::OK;
     }
 
