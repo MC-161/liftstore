@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError } from '../api/client'
 import { kg } from '../lib/format'
 import { EQUIP_LABEL, className, ipfClassIndex, toQuery, total, type Inputs } from '../lib/inputs'
@@ -66,24 +66,53 @@ export function TopNav({ active, inputs }: { active: Screen; inputs: Inputs | nu
     ['head-to-head', 'Head to head', 'Versus', `/h2h${q}`],
     ['leaderboards', 'Leaderboards', 'Ranks', `/lb${q}`],
   ]
+  // One underline that slides to the active tab instead of each tab drawing
+  // its own. Measured from the DOM so it follows real label widths; the first
+  // placement doesn't animate, later ones glide.
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [ink, setInk] = useState({ x: 0, w: 0, ready: false })
+  useLayoutEffect(() => {
+    const box = tabsRef.current
+    if (!box) return
+    const place = () => {
+      const a = box.querySelector<HTMLElement>('.tab.active')
+      if (!a) return
+      setInk((p) => ({ x: a.offsetLeft, w: a.offsetWidth, ready: p.w > 0 }))
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    ro.observe(box)
+    return () => ro.disconnect()
+  }, [active])
+  // The bottom bar needs no measuring (equal columns); it only waits a frame
+  // so its first position doesn't animate in.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(r)
+  }, [])
+
   return (
     <>
       <nav className="topnav" aria-label="Main">
         <a className="brand" href="/" onClick={onLinkClick}><Mark />Weak Link</a>
-        <div className="tabs">
+        <div className="tabs" ref={tabsRef}>
           {tabs.map(([id, label, , href]) => (
             <a key={id} className={`tab${active === id ? ' active' : ''}`} href={href} onClick={onLinkClick}
               aria-current={active === id ? 'page' : undefined}>
               {label}
             </a>
           ))}
+          <span className={`tab-ink${ink.ready ? ' ready' : ''}`} aria-hidden="true"
+            style={{ transform: `translateX(${ink.x}px)`, width: ink.w }} />
         </div>
         <div className="nav-actions">
           <ThemeToggle />
           <a className="btn nav-edit" href={inputs ? `/?${toQuery(inputs)}` : '/'} onClick={onLinkClick}>Edit lifts</a>
         </div>
       </nav>
-      <nav className="bottomnav" aria-label="Screens">
+      <nav className="bottomnav" aria-label="Screens" style={{ '--at': Math.max(0, tabs.findIndex(([id]) => id === active)) } as React.CSSProperties}>
+        <span className={`bottom-ink${mounted ? ' ready' : ''}`} aria-hidden="true" />
         {tabs.map(([id, , short, href]) => (
           <a key={id} className={active === id ? 'on' : undefined} href={href} onClick={onLinkClick}
             aria-current={active === id ? 'page' : undefined}>
