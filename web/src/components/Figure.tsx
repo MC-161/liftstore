@@ -1,119 +1,135 @@
-// The figure: a low-poly humanoid whose regions are lit by RELATIVE percentile
-// -- each lift against the lifter's other two, not against the population --
-// so a strong lifter doesn't glow uniformly and the weak lift stays visible.
-// chest/shoulders/arms <- bench, back/core/hips <- deadlift, thighs/shins <- squat.
-// Each lift draws in its own hue; how far it is lit says how strong it is.
+// The body map: front and back, each muscle group lit by the lift that trains
+// it, by RELATIVE percentile -- each lift against the lifter's other two, not
+// the population -- so a strong lifter doesn't glow uniformly and the weak
+// lift stays visible.
+//   squat    -> quads, adductors
+//   bench    -> chest, front delts, triceps
+//   deadlift -> hamstrings, glutes, lower back, lats, traps
+// Everything else is neutral: no lift here is scored on it.
 
 import type { Lift } from '../lib/format'
-import { LIFT_HEX, relative, shade, type Lit } from '../lib/lifts'
+import { LIFT_COLOR, relative, strength, type Lit } from '../lib/lifts'
 
-// [region, lift or null for neutral, points]. Left side; mirrored below.
-type Poly = [string, Lift | null, string]
-const LEFT: Poly[] = [
-  ['shoulder', 'bench', '92,82 70,88 58,106 66,119 84,101'],
-  ['chest', 'bench', '93,85 85,101 77,122 98,128 100,92'],
-  ['upperarm', 'bench', '58,106 66,119 61,160 50,156'],
-  ['forearm', 'bench', '50,156 61,160 57,208 47,205'],
-  ['hand', null, '47,205 57,208 55,222 46,219'],
-  ['lat', 'deadlift', '77,122 66,119 70,160 87,177'],
-  ['hip', 'deadlift', '87,178 100,178 100,201 81,207 74,190'],
-  ['thigh', 'squat', '74,192 81,208 100,202 96,280 80,283 72,240'],
-  ['knee', 'squat', '80,284 96,281 95,297 82,297'],
-  ['shin', 'squat', '82,298 95,298 92,368 84,368'],
-  ['foot', null, '84,369 92,369 95,382 75,382'],
+type Part = { d: string; lift: Lift | null }
+
+const mirror = (d: string) => d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x, y) => `${200 - Number(x)} ${y}`)
+const both = (lift: Lift | null, d: string): Part[] => [{ d, lift }, { d: mirror(d), lift }]
+const one = (lift: Lift | null, d: string): Part[] => [{ d, lift }]
+
+const HEAD = 'M100 12 Q118 12 118 34 Q118 56 100 56 Q82 56 82 34 Q82 12 100 12 Z'
+const NECK = 'M92 54 L108 54 L110 66 L90 66 Z'
+const FOOT = 'M78 386 L92 386 L95 400 L72 400 Q72 392 78 386 Z'
+const FOREARM = 'M54 141 Q47 166 50 192 L59 192 Q67 166 66 141 Z'
+const UPPER_ARM = 'M56 100 Q51 120 55 138 L66 137 Q70 118 68 104 Z'
+const KNEE = 'M80 291 Q87 286 94 291 Q94 300 87 302 Q80 300 80 291 Z'
+
+const FRONT: Part[] = [
+  ...one(null, HEAD), ...one(null, NECK),
+  ...one('deadlift', 'M90 64 Q100 70 110 64 L122 71 Q100 76 78 71 Z'),
+  ...both('bench', 'M78 72 Q62 74 56 92 Q58 104 69 102 Q72 88 84 80 Z'),
+  ...both('bench', 'M99 78 L85 80 Q73 90 74 104 Q86 113 99 109 Z'),
+  ...both(null, UPPER_ARM),
+  ...both(null, FOREARM),
+  ...one(null, 'M88 113 Q100 117 112 113 L114 168 Q100 179 86 168 Z'),
+  ...both(null, 'M75 108 Q85 113 87 117 L85 166 Q78 160 76 140 Q73 122 75 108 Z'),
+  ...both('squat', 'M86 178 Q74 183 72 212 Q70 252 80 288 L94 288 Q101 242 98 186 Z'),
+  ...both('squat', 'M99 181 L99 238 Q97 250 95 248 Q93 214 98 186 Z'),
+  ...both(null, KNEE),
+  ...both(null, 'M79 305 Q74 342 80 382 L91 382 Q97 342 93 305 Z'),
+  ...both(null, FOOT),
 ]
-const mirror = (pts: string) =>
-  pts.split(' ').map((p) => { const [x, y] = p.split(','); return `${200 - Number(x)},${y}` }).join(' ')
 
-const CENTRE: Poly[] = [
-  ['head', null, '100,18 117,37 113,62 100,71 87,62 83,37'],
-  ['neck', null, '93,71 107,71 109,83 91,83'],
-  ['core', 'deadlift', '98,129 77,123 87,177 113,177 123,123 102,129'],
+const BACK: Part[] = [
+  ...one(null, HEAD), ...one(null, NECK),
+  ...one('deadlift', 'M100 56 L124 71 Q113 92 100 112 Q87 92 76 71 Z'),
+  ...both('bench', 'M76 72 Q62 74 56 92 Q58 104 69 102 Q72 88 80 79 Z'),
+  ...both('bench', UPPER_ARM),
+  ...both(null, FOREARM),
+  ...both('deadlift', 'M77 82 Q70 116 80 150 L95 142 Q92 112 88 96 Q84 88 77 82 Z'),
+  ...one('deadlift', 'M94 114 L106 114 L109 170 L91 170 Z'),
+  ...both('deadlift', 'M99 173 Q80 172 75 191 Q78 210 98 209 Z'),
+  ...both('deadlift', 'M76 212 Q72 252 80 288 L94 288 Q99 252 98 213 Z'),
+  ...both(null, KNEE),
+  ...both(null, 'M78 304 Q70 334 80 366 L92 366 Q99 334 93 304 Z'),
+  ...both(null, 'M81 369 L91 369 L91 384 L81 384 Z'),
+  ...both(null, FOOT),
 ]
-const POLYS: Poly[] = [...CENTRE, ...LEFT, ...LEFT.map(([n, l, pts]) => [`${n}-r`, l, mirror(pts)] as Poly)]
-const NEUTRAL = '#2a2d33'
 
-// CSS variables by default; explicit colours when the SVG is rasterised
-// outside the page (the share card's PNG), where var(--x) resolves to nothing.
-type Colors = { bg: string; line: string; dim: string }
-const CSS_COLORS: Colors = { bg: 'var(--bg)', line: 'var(--line)', dim: 'var(--text-dim)' }
+const NAME: Record<Lift, string> = { squat: 'Squat', bench: 'Bench', deadlift: 'Deadlift' }
+
+// Colours: CSS variables on the page (they follow the theme); explicit hex
+// when the SVG is rasterised outside the page (the share card's PNG).
+export type Palette = { lift: Record<Lift, string>; off: string; edge: string; mix: (hue: string, k: number, off: string) => string }
+
+export const CSS_PALETTE: Palette = {
+  lift: LIFT_COLOR,
+  off: 'var(--muscle-off)',
+  edge: 'var(--surface)',
+  mix: (hue, k, off) => `color-mix(in oklab, ${hue} ${Math.round(k * 100)}%, ${off})`,
+}
+
+function View({ parts, percentiles, focus, onHover, palette }: {
+  parts: Part[]; percentiles: Lit; focus: Lift | null; onHover?: (l: Lift | null) => void; palette: Palette
+}) {
+  const rel = relative(percentiles)
+  return (
+    <>
+      {parts.map((p, k) => (
+        <path key={k} d={p.d} data-lift={p.lift ?? ''} className={p.lift && p.lift === focus ? 'on' : undefined}
+          fill={p.lift ? palette.mix(palette.lift[p.lift], strength(rel[p.lift]), palette.off) : palette.off}
+          stroke={palette.edge} strokeWidth={1.6} strokeLinejoin="round"
+          onMouseEnter={onHover && p.lift ? () => onHover(p.lift) : undefined}
+          onMouseLeave={onHover && p.lift ? () => onHover(null) : undefined}
+          style={onHover && p.lift ? { cursor: 'pointer' } : undefined}>
+          {p.lift && <title>{`${NAME[p.lift]} · ${Math.floor(percentiles[p.lift])}th percentile`}</title>}
+        </path>
+      ))}
+    </>
+  )
+}
 
 type Props = {
   percentiles: Lit
-  size?: number
-  arcs?: boolean
-  asGroup?: boolean
-  colors?: Colors
+  height?: number
+  views?: 'both' | 'front'
   focus?: Lift | null
   onHover?: (l: Lift | null) => void
 }
 
-export function Figure({ percentiles, size = 400, arcs = true, asGroup = false, colors = CSS_COLORS, focus = null, onHover }: Props) {
-  const rel = relative(percentiles)
-  const strongest = (Object.keys(rel) as Lift[]).reduce((a, b) => (rel[b] > rel[a] ? b : a))
-  const label: Record<Lift, string> = { squat: 'Squat', bench: 'Bench', deadlift: 'Deadlift' }
-
-  const body = (
-    <>
-      {arcs && <Arcs percentiles={percentiles} colors={colors} />}
-      {POLYS.map(([name, lift, pts]) => (
-        <polygon key={name} data-region={name} data-lift={lift ?? ''} points={pts}
-          className={[lift && lift === focus ? 'on' : '', lift && lift === strongest ? 'strong' : ''].join(' ')}
-          fill={lift ? shade(lift, rel[lift]) : NEUTRAL} stroke={colors.bg} strokeWidth={1.6} strokeLinejoin="round"
-          onMouseEnter={onHover && lift ? () => onHover(lift) : undefined}
-          onMouseLeave={onHover && lift ? () => onHover(null) : undefined}
-          style={onHover && lift ? { cursor: 'pointer' } : undefined}>
-          {lift && <title>{`${label[lift]} · ${Math.floor(percentiles[lift])}th percentile`}</title>}
-        </polygon>
-      ))}
-    </>
-  )
-  if (asGroup) return <g transform="translate(125 25)">{body}</g>
+// On-page body map, captioned.
+export function BodyMap({ percentiles, height = 380, views = 'both', focus = null, onHover }: Props) {
+  const w = (height * 200) / 420
+  const label = `Muscles lit by relative strength: squat ${Math.floor(percentiles.squat)}th, bench ${Math.floor(percentiles.bench)}th, deadlift ${Math.floor(percentiles.deadlift)}th percentile`
+  const sides: ['Front' | 'Back', Part[]][] = views === 'both' ? [['Front', FRONT], ['Back', BACK]] : [['Front', FRONT]]
   return (
-    <svg className={`figure${focus ? ' focus' : ''}`} viewBox="-125 -25 450 450" width={size} height={size} role="img"
-      aria-label={`Figure lit by relative percentile: squat ${Math.floor(percentiles.squat)}, bench ${Math.floor(percentiles.bench)}, deadlift ${Math.floor(percentiles.deadlift)}`}>
-      {body}
-    </svg>
+    <div className={`bodymap${focus ? ' focus' : ''}`} role="img" aria-label={label}>
+      {sides.map(([name, parts]) => (
+        <figure key={name}>
+          <svg viewBox="0 0 200 420" width={w} height={height} aria-hidden="true">
+            <View parts={parts} percentiles={percentiles} focus={focus} onHover={onHover} palette={CSS_PALETTE} />
+          </svg>
+          {views === 'both' && <figcaption>{name}</figcaption>}
+        </figure>
+      ))}
+    </div>
   )
 }
 
-// Three thin arcs, open at the bottom, each swept in proportion to that
-// lift's population percentile, in that lift's colour. They draw in on arrival.
-function Arcs({ percentiles, colors }: { percentiles: Lit; colors: Colors }) {
-  const cx = 100, cy = 200
-  const span = 270 // degrees; the 90 left open at the bottom
-  const start = 135
-  const rows: [Lift, number, string][] = [
-    ['bench', 158, 'BP'], ['squat', 176, 'SQ'], ['deadlift', 194, 'DL'],
-  ]
-  const pt = (r: number, deg: number) => {
-    const a = (deg * Math.PI) / 180
-    return [cx + r * Math.cos(a), cy + r * Math.sin(a)]
-  }
+// Bare SVG group for embedding in another SVG (the share card), with fixed
+// colours. Front and back side by side, 400 wide x 420 tall in its own units.
+export function BodyMapGroup({ percentiles, palette }: { percentiles: Lit; palette: Palette }) {
   return (
-    <g fill="none">
-      {rows.map(([lift, r, tag], k) => {
-        const sweep = Math.max(0.5, (span * Math.max(0, Math.min(100, percentiles[lift]))) / 100)
-        const [x0, y0] = pt(r, start)
-        const [x1, y1] = pt(r, start + sweep)
-        const [tx1, ty1] = pt(r, start + span)
-        // Labels sit where the arcs START: the radii keep them apart, whereas
-        // at the sweep end two close percentiles would print on top of each other.
-        const [lx, ly] = pt(r, start - 9)
-        const len = (Math.PI * r * sweep) / 180
-        return (
-          <g key={lift}>
-            <path d={`M${x0},${y0} A${r},${r} 0 1 1 ${tx1},${ty1}`} stroke={colors.line} strokeWidth={1} />
-            <path className="draw" style={{ '--len': len, '--i': k } as React.CSSProperties}
-              d={`M${x0},${y0} A${r},${r} 0 ${sweep > 180 ? 1 : 0} 1 ${x1},${y1}`}
-              stroke={LIFT_HEX[lift]} strokeWidth={2} strokeLinecap="round" />
-            <circle cx={x1} cy={y1} r={3} fill={LIFT_HEX[lift]} className="fade-in" style={{ '--i': k + 6 } as React.CSSProperties} />
-            <text x={lx} y={ly} fontSize={11} fill={LIFT_HEX[lift]} textAnchor="middle" dominantBaseline="middle"
-              letterSpacing="0.08em">{tag} {Math.floor(percentiles[lift])}%</text>
-          </g>
-        )
-      })}
+    <g>
+      <g><View parts={FRONT} percentiles={percentiles} focus={null} palette={palette} /></g>
+      <g transform="translate(200 0)"><View parts={BACK} percentiles={percentiles} focus={null} palette={palette} /></g>
     </g>
   )
 }
 
+// JS colour mix for the exported PNG (no color-mix() outside the page).
+export function hexMix(hue: string, k: number, off: string): string {
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+  const a = rgb(off), b = rgb(hue)
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * k))
+  return `rgb(${c[0]},${c[1]},${c[2]})`
+}

@@ -543,3 +543,15 @@ Where the build departs from this spec, and why. Every item came from the data o
 
 - **No coloured edge stripes (2026-11-07)**: lift panels show a 25-tick percentile ruler (lit to the value, the current tick raised) instead of a side stripe plus thin bar; Attempts sections get a faint top wash in the lift hue; the "you" leaderboard row keeps only its tint and badge. Slider updates in production: 0.2–0.4 ms median, ≤ 1.3 ms p95.
 - **Mobile and tablet (2026-11-07)**: phones (≤ 760 px) get a bottom tab bar (Verdict · Classes · Attempts · Versus · Ranks; the logo goes to Entry), a sticky one-line header with an Edit link, the verdict statement first, Weight Class bars and Attempts cards laid flat as rows, swipeable leaderboard presets, and Head to Head with the comparison above the two lifter cards. Tablets (≤ 1100 px) put the verdict on top over two columns and tighten the tabs. Touch devices get 26 px slider thumbs, ~40 px tap targets, and nothing hover-only. No sideways scroll on any screen at 320, 375 or 768 px (measured).
+- **Showcase refinement (2026-11-07, after an Impeccable critique scoring 26/40)**: same
+  structure (body in the centre, stats around it, every screen kept), cleaner surface.
+  Light and dark themes from one token set: follows the system, toggle in the nav, choice
+  remembered (storage guarded); transitions are paused for one frame on switch so no fill
+  keeps the old theme. Every text tone ≥ 4.5:1 on its surface (the old faint grey was ~2.5:1).
+  One type scale (12/13/15/20/28/40/56; the Verdict screen now renders 8 sizes, was 14),
+  sentence case throughout (0 upper-case labels, was 33), no 9–10 px text, no eyebrow labels,
+  a real `<h1>` (the verdict). The low-poly figure and its arcs are replaced by an anatomical
+  front/back body map lit by relative percentile, with a hoverable legend; the share card uses
+  the same map with fixed colours. The six-chip group row is one quiet line; Share moved to the
+  top of the verdict card; Entry became an "Edit lifts" action; film grain, glow blobs and the
+  staggered entrance on every section are gone (one quick arrival, then state changes only).

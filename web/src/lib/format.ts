@@ -35,15 +35,15 @@ export function abbreviate(name: string): string {
 export const signed = (v: number, digits = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(digits)}`
 
 export function tier(p: number): string {
-  if (p < 40) return 'NOVICE'
-  if (p < 70) return 'INTERMEDIATE'
-  if (p < 90) return 'ADVANCED'
-  return 'ELITE'
+  if (p < 40) return 'Novice'
+  if (p < 70) return 'Intermediate'
+  if (p < 90) return 'Advanced'
+  return 'Elite'
 }
 
 export const LIFTS = ['squat', 'bench', 'deadlift'] as const
 export type Lift = (typeof LIFTS)[number]
-export const LIFT_LABEL: Record<Lift, string> = { squat: 'SQUAT', bench: 'BENCH', deadlift: 'DEADLIFT' }
+export const LIFT_LABEL: Record<Lift, string> = { squat: 'Squat', bench: 'Bench', deadlift: 'Deadlift' }
 export const LIFT_WIRE = {
   squat: 'LIFT_KIND_SQUAT', bench: 'LIFT_KIND_BENCH', deadlift: 'LIFT_KIND_DEADLIFT',
 } as const

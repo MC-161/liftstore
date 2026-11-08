@@ -78,17 +78,17 @@ export function DistributionChart({ cdf, marker, mean, sd, height = 180, smoothi
               <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.02" />
             </linearGradient>
             <linearGradient id={`rest-${gid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8b93a1" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#8b93a1" stopOpacity="0.02" />
+              <stop offset="0%" stopColor="var(--text-3)" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="var(--text-3)" stopOpacity="0.02" />
             </linearGradient>
             <clipPath id={`clip-${gid}`}><rect x={0} y={0} width={mx} height={H} /></clipPath>
           </defs>
           <path d={area} fill={`url(#rest-${gid})`} className="fade-in" />
           {/* The same area, clipped at the lifter's total: "this much of the group is below you". */}
           <path d={area} fill={`url(#fill-${gid})`} clipPath={`url(#clip-${gid})`} className="fade-in" style={{ '--i': 2 } as React.CSSProperties} />
-          <path d={d} fill="none" stroke="var(--figure-mid)" strokeWidth={1.25} vectorEffect="non-scaling-stroke"
+          <path d={d} fill="none" stroke="var(--text-3)" strokeWidth={1.25} vectorEffect="non-scaling-stroke"
             pathLength={1000} className="draw" />
-          <line x1={x(mean)} x2={x(mean)} y1={8} y2={H - 8} stroke="var(--text-faint)" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+          <line x1={x(mean)} x2={x(mean)} y1={8} y2={H - 8} stroke="var(--text-3)" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
           <line x1={mx} x2={mx} y1={4} y2={H - 8} stroke="var(--accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
           {extra.map((m) => {
             const ex = Math.max(0, Math.min(W, x(m.value)))
@@ -96,12 +96,12 @@ export function DistributionChart({ cdf, marker, mean, sd, height = 180, smoothi
           })}
           {hover && (
             <line x1={(hover.x / box.current!.getBoundingClientRect().width) * W} x2={(hover.x / box.current!.getBoundingClientRect().width) * W}
-              y1={4} y2={H - 8} stroke="var(--text-dim)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+              y1={4} y2={H - 8} stroke="var(--text-2)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
           )}
           <line x1={0} x2={W} y1={H - 8} y2={H - 8} stroke="var(--line)" vectorEffect="non-scaling-stroke" />
         </svg>
-        {extra.length > 0 && [{ value: marker, color: 'var(--accent)', label: 'YOU' }, ...extra].map((m, k) => (
-          <div key={m.label} className="label" style={{
+        {extra.length > 0 && [{ value: marker, color: 'var(--accent)', label: 'You' }, ...extra].map((m, k) => (
+          <div key={m.label} className="meta" style={{ fontWeight: 600,
             position: 'absolute', top: 2 + k * 16, left: `${(Math.max(0, Math.min(W, x(m.value))) / W) * 100}%`,
             transform: x(m.value) > W * 0.7 ? 'translateX(calc(-100% - 6px))' : 'translateX(6px)', color: m.color, whiteSpace: 'nowrap',
           }}>{m.label}</div>
@@ -115,8 +115,8 @@ export function DistributionChart({ cdf, marker, mean, sd, height = 180, smoothi
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginTop: 8 }}>
         {marks.map((m) => (
           <div key={m.k} style={{ textAlign: 'center', opacity: m.inRange ? 1 : 0.4 }} title={`${kg(m.v)} kg`}>
-            <div className="label" style={{ fontSize: 10 }}>{m.k === 0 ? 'MEAN' : `${m.k > 0 ? '+' : '−'}${Math.abs(m.k)}σ`}</div>
-            <div className="faint" style={{ fontSize: 11 }}>{m.inRange ? `${m.p.toFixed(1)}%` : '—'}</div>
+            <div className="meta">{m.k === 0 ? 'mean' : `${m.k > 0 ? '+' : '−'}${Math.abs(m.k)} sd`}</div>
+            <div className="meta" style={{ color: 'var(--text-2)' }}>{m.inRange ? `${m.p.toFixed(1)}%` : '—'}</div>
           </div>
         ))}
       </div>

@@ -1,5 +1,5 @@
 import { attempts } from '../api/endpoints'
-import { Eyebrow, ErrorState, HeaderStrip, Loading } from '../components/Shell'
+import { ErrorState, HeaderStrip, Loading } from '../components/Shell'
 import { int, kg, LIFT_LABEL, LIFT_WIRE, LIFTS, type Lift } from '../lib/format'
 import { EQUIP_LABEL, classGroup, className, ipfClassIndex, toQuery, type Inputs } from '../lib/inputs'
 import { useState } from 'react'
@@ -41,10 +41,9 @@ function Body({ inputs, data }: { inputs: Inputs; data: Awaited<ReturnType<typeo
   const [chosen, setChosen] = useState<Partial<Record<Lift, number>>>({})
   return (
     <>
-      <Eyebrow>SECOND TO THIRD ATTEMPT · {cls} KG {EQUIP_LABEL[inputs.eq].toUpperCase()}</Eyebrow>
       <div className="titlerow">
         <h1 className="large">What should you call?</h1>
-        <span className="criteria label">LARGEST JUMP MADE BY ≥ 60%</span>
+        <span className="criteria">Pick: the largest jump at least 60% made</span>
       </div>
 
       {LIFTS.map((l, k) => {
@@ -59,21 +58,20 @@ function Body({ inputs, data }: { inputs: Inputs; data: Awaited<ReturnType<typeo
         return (
           <section className={`liftsection rise c-${l}-section`} key={l} style={{ ...liftVars(l), ...stagger(k) }}>
             <div className="head">
-              <span className="label"><span className={`c-${l}`}>0{k + 1} / {LIFT_LABEL[l]}</span> <span className="faint">· {int(r.n)} third attempts</span></span>
-              <span><span className="label">IF YOUR SECOND IS </span><span className="stat">{kg(value(inputs, l))}</span><span className="unit">KG</span></span>
+              <h2 className="label" style={{ color: 'inherit' }}><span className={`name c-${l}`}>{LIFT_LABEL[l]}</span> <span className="meta">· {int(r.n)} third attempts</span></h2>
+              <span><span className="label">If your second is </span><span className="stat">{kg(value(inputs, l))}</span><span className="unit">kg</span></span>
             </div>
             <div className="cards">
               {cards.map((c, ci) => (
-                <div key={c.j} className={`card${pick?.j === c.j ? ' pick' : ''}${c.rate === null ? ' empty' : ''}${(chosen[l] ?? pick?.j) === c.j ? ' chosen' : ''}`}
-                  title={`${int(c.count)} lifters jumped this much`} role="button" tabIndex={0}
-                  onClick={() => setChosen({ ...chosen, [l]: c.j })}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setChosen({ ...chosen, [l]: c.j }) }}>
-                  <span className="label">+{c.j.toFixed(1)} KG</span>
+                <button type="button" key={c.j} className={`card${pick?.j === c.j ? ' pick' : ''}${c.rate === null ? ' empty' : ''}${(chosen[l] ?? pick?.j) === c.j ? ' chosen' : ''}`}
+                  title={`${int(c.count)} lifters jumped this much`} aria-pressed={(chosen[l] ?? pick?.j) === c.j}
+                  onClick={() => setChosen({ ...chosen, [l]: c.j })}>
+                  <span className="label">+{c.j.toFixed(1)} kg</span>
                   <span className="rate">{c.rate === null ? '—' : <CountUp value={c.rate * 100} format={(v) => `${Math.round(v)}%`} />}</span>
                   <span className="stem grow-y" style={{ '--h': `${c.rate === null ? 0 : 20 + c.rate * 130}px`, '--p': `${(c.rate ?? 0) * 100}%`, ...stagger(k * 5 + ci) } as React.CSSProperties} />
-                  <span className="w">{kg(value(inputs, l) + c.j)}<span className="unit">KG</span></span>
-                  <span className="faint" style={{ fontSize: 11, marginTop: 4 }}>n = {int(c.count)}</span>
-                </div>
+                  <span className="w">{kg(value(inputs, l) + c.j)}<span className="unit">kg</span></span>
+                  <span className="meta" style={{ marginTop: 4 }}>{int(c.count)} tried</span>
+                </button>
               ))}
             </div>
             {(() => {
@@ -82,8 +80,8 @@ function Body({ inputs, data }: { inputs: Inputs; data: Awaited<ReturnType<typeo
               if (!c) return <div className="note">No jump here was made by 60% of the lifters who chose it. Tap a card to call one anyway.</div>
               return (
                 <div className="called">
-                  <span className="label">YOUR CALL</span>
-                  <span className="stat" style={{ color: 'var(--lc)' }}>{kg(value(inputs, l) + c.j)}</span><span className="unit">KG</span>
+                  <span className="label">Your call</span>
+                  <span className="stat" style={{ color: 'var(--lc)' }}>{kg(value(inputs, l) + c.j)}</span><span className="unit">kg</span>
                   <span className="dim">
                     +{c.j.toFixed(1)} kg · {c.rate === null ? 'no lifters jumped this much' : `made by ${Math.round(c.rate * 100)}% of ${int(c.count)} who tried it`}
                     {pick?.j === c.j ? ' · the pick' : ''}

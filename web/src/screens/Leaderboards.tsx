@@ -1,6 +1,6 @@
 import { leaderboard, type RankSpec, type WireLift } from '../api/endpoints'
 import type { LeaderRow } from '../gen/engine_pb'
-import { Eyebrow, ErrorState, HeaderStrip, Loading } from '../components/Shell'
+import { ErrorState, HeaderStrip, Loading } from '../components/Shell'
 import { abbreviate, int, kg, pctText } from '../lib/format'
 import { EQUIP_LABEL, classGroup, toQuery, type Inputs } from '../lib/inputs'
 import { CountUp, i as stagger } from '../lib/motion'
@@ -22,7 +22,7 @@ const LIFT_WIRE: Record<LiftKey, WireLift> = {
   squat: 'LIFT_KIND_SQUAT', bench: 'LIFT_KIND_BENCH', deadlift: 'LIFT_KIND_DEADLIFT', total: 'LIFT_KIND_TOTAL',
 }
 const OP_WIRE = { none: 'COMBINE_NONE', minus: 'COMBINE_MINUS', plus: 'COMBINE_PLUS', ratio: 'COMBINE_RATIO' } as const
-const PRESETS: [PresetKey, string][] = [['top', 'TOP TOTAL'], ['dots', 'POUND-FOR-POUND'], ['balanced', 'MOST BALANCED']]
+const PRESETS: [PresetKey, string][] = [['top', 'Top total'], ['dots', 'Pound for pound'], ['balanced', 'Most balanced']]
 
 // One unit for both sides: "bench kg minus squat percentile" has no meaning,
 // and a ratio over a percentile explodes near 0 (x13,980 at the top of the
@@ -92,7 +92,7 @@ function formatScore(c: Composer, v: number): string {
   return pct ? `${sign}${Math.abs(v).toFixed(1)} pts` : `${sign}${kg(Math.abs(v))}`
 }
 const scoreUnit = (c: Composer) =>
-  c.rank === 'top' || (c.rank === 'custom' && c.op !== 'ratio' && c.am === 'kg' && (c.op === 'none' || c.bm === 'kg')) ? 'KG' : ''
+  c.rank === 'top' || (c.rank === 'custom' && c.op !== 'ratio' && c.am === 'kg' && (c.op === 'none' || c.bm === 'kg')) ? 'kg' : ''
 
 async function load(i: Inputs, c: Composer) {
   const t0 = performance.now()
@@ -117,14 +117,14 @@ export function Leaderboards({ inputs, params }: { inputs: Inputs; params: URLSe
     <>
       <HeaderStrip inputs={inputs} />
       <main className="main">
-        <Eyebrow>
-          {res.state === 'ok' ? `${res.data.res.weightClass} KG ` : ''}{EQUIP_LABEL[inputs.eq].toUpperCase()} {inputs.sex === 'm' ? 'MEN' : 'WOMEN'} · FULL POWER
-          {res.state === 'ok' && ` · ${int(res.data.res.lifters)} LIFTERS`}
-        </Eyebrow>
         <h1 className="large">Who’s ahead, and how.</h1>
+        <p className="subtitle">
+          {res.state === 'ok' ? `${res.data.res.weightClass} kg class · ` : ''}{EQUIP_LABEL[inputs.eq].toLowerCase()} · {inputs.sex === 'm' ? 'men' : 'women'}
+          {res.state === 'ok' && ` · ${int(res.data.res.lifters)} lifters ranked`}
+        </p>
 
         <div className="composer panel">
-          <span className="label">RANK BY</span>
+          <span className="label">Rank by</span>
           {/* Always shows the custom rule; under a preset it's dimmed, and
               touching any part of it switches to custom. */}
           <Select value={c.a} dim={c.rank !== 'custom'} options={['squat', 'bench', 'deadlift', 'total']}
@@ -145,11 +145,11 @@ export function Leaderboards({ inputs, params }: { inputs: Inputs; params: URLSe
           <Select value={c.dir} dim={c.rank !== 'custom'} options={['desc', 'asc']} labels={{ desc: 'highest first', asc: 'lowest first' }}
             onChange={(v) => set({ rank: 'custom', dir: v as 'desc' | 'asc' })} />
           <button className="choice" aria-pressed={c.rank === 'custom'} onClick={() => set({ rank: 'custom' })}>
-            {c.rank === 'custom' ? 'CUSTOM' : 'USE THIS RULE'}
+            {c.rank === 'custom' ? 'Custom' : 'Use this rule'}
           </button>
 
           <span className="presets">
-            <span className="label">PRESETS</span>
+            <span className="label">Presets</span>
             {PRESETS.map(([k, label]) => (
               <button key={k} className="choice" aria-pressed={c.rank === k} onClick={() => set({ rank: k })}>{label}</button>
             ))}
@@ -160,9 +160,9 @@ export function Leaderboards({ inputs, params }: { inputs: Inputs; params: URLSe
           <label className="toggle">
             <input type="checkbox" checked={!c.all} onChange={(e) => set({ all: !e.target.checked })} />
             <span className="track" aria-hidden />
-            <span className="label">HIDE IMPLAUSIBLE LINES</span>
+            <span>Hide implausible lines</span>
             {res.state === 'ok' && !c.all && res.data.res.hidden > 0 && (
-              <span className="faint" style={{ fontSize: 12 }}>· {int(res.data.res.hidden)} hidden</span>
+              <span className="meta">· {int(res.data.res.hidden)} hidden</span>
             )}
           </label>
         </div>
@@ -181,7 +181,7 @@ function Select({ value, options, labels, onChange, dim }: {
 }) {
   return (
     <select className={`select${dim ? ' dimmed' : ''}`} value={value} onChange={(e) => onChange(e.target.value)}>
-      {options.map((o) => <option key={o} value={o}>{(labels?.[o] ?? o).toUpperCase()}</option>)}
+      {options.map((o) => <option key={o} value={o}>{labels?.[o] ?? o}</option>)}
     </select>
   )
 }
@@ -200,41 +200,42 @@ function Board({ inputs, c, rows, you, lifters, hidden, ms }: {
 
   return (
     <>
+      <h2 className="sr-only">Rankings</h2>
       <div className="board">
-        <div className="board-head label">
-          <span>RANK</span><span>LIFTER / BEST TOTAL’S LIFTS</span><span style={{ textAlign: 'right' }}>SCORE</span>
+        <div className="board-head">
+          <span>Rank</span><span>Lifter · lifts from their best total</span><span style={{ textAlign: 'right' }}>Score</span>
         </div>
         {lines.map((r, k) => r === 'you' ? (
           <div key="you" className="board-row you rise" style={stagger(k)}>
-            <span className="label accent">{you!.rank <= rows.length ? `#${String(you!.rank).padStart(2, '0')}` : 'PROJ'}</span>
+            <span className="rank">{you!.rank <= rows.length ? `#${you!.rank}` : '—'}</span>
             <span>
-              <span className="who">You <span className="badge">YOU WOULD RANK #{int(you!.rank)}</span></span>
-              <span className="lifts">SQ {kg(you!.squat)} · BP {kg(you!.bench)} · DL {kg(you!.deadlift)} · TOTAL {kg(you!.total)}</span>
+              <span className="who">You <span className="badge">You would rank #{int(you!.rank)}</span></span>
+              <span className="lifts">Squat {kg(you!.squat)} · bench {kg(you!.bench)} · deadlift {kg(you!.deadlift)} · total {kg(you!.total)}</span>
             </span>
             <span className="score accent">
-              {custompct && <span className="sub">SQ {pctText(you!.squatPct)} · BP {pctText(you!.benchPct)} · DL {pctText(you!.deadliftPct)}</span>}
+              {custompct && <span className="sub">squat {pctText(you!.squatPct)} · bench {pctText(you!.benchPct)} · deadlift {pctText(you!.deadliftPct)}</span>}
               <CountUp value={you!.score} format={(v) => formatScore(c, v)} />{unit && <span className="unit">{unit}</span>}
             </span>
           </div>
         ) : (
-          <div key={r.name} className="board-row rise" style={stagger(k)} role="button" tabIndex={0}
-            title={`${r.name} · ${r.federation} · ${r.date}`}
-            onClick={() => compare(r.name)} onKeyDown={(e) => { if (e.key === 'Enter') compare(r.name) }}>
-            <span className="label">#{String(r.rank).padStart(2, '0')}</span>
+          <button type="button" key={r.name} className="board-row rise" style={stagger(k)}
+            title={`${r.name} · ${r.federation} · ${r.date}`} aria-label={`Compare with ${r.name}, rank ${r.rank}`}
+            onClick={() => compare(r.name)}>
+            <span className="rank">#{r.rank}</span>
             <span>
-              <span className="who">{abbreviate(r.name)} <span className="compare label">COMPARE →</span></span>
-              <span className="lifts">SQ {kg(r.squat)} · BP {kg(r.bench)} · DL {kg(r.deadlift)} · TOTAL {kg(r.total)} · BW {kg(r.bodyweight)}</span>
+              <span className="who">{abbreviate(r.name)} <span className="compare">Compare →</span></span>
+              <span className="lifts">Squat {kg(r.squat)} · bench {kg(r.bench)} · deadlift {kg(r.deadlift)} · total {kg(r.total)} · bodyweight {kg(r.bodyweight)}</span>
             </span>
             <span className="score">
-              {custompct && <span className="sub">SQ {pctText(r.squatPct)} · BP {pctText(r.benchPct)} · DL {pctText(r.deadliftPct)}</span>}
+              {custompct && <span className="sub">squat {pctText(r.squatPct)} · bench {pctText(r.benchPct)} · deadlift {pctText(r.deadliftPct)}</span>}
               <CountUp value={r.score} format={(v) => formatScore(c, v)} />{unit && <span className="unit">{unit}</span>}
             </span>
-          </div>
+          </button>
         ))}
       </div>
       <div className="kv" style={{ marginTop: 14 }}>
         <span className="dim">Ranked across {int(lifters)} lifters in this class{ms >= 2 ? ` · ${Math.round(ms)} ms round trip` : ' · cached'}</span>
-        <span className="label faint">ONE LINE PER LIFTER: THEIR BEST-TOTAL RESULT</span>
+        <span className="meta">One line per lifter: their best-total result</span>
       </div>
       <p className="note">
         {c.all

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Cdf } from '../api/cdf'
 import { classChange, classSweep, distribution } from '../api/endpoints'
-import { Eyebrow, ErrorState, HeaderStrip, Loading } from '../components/Shell'
+import { ErrorState, HeaderStrip, Loading } from '../components/Shell'
 import { int, kg, pctText, signed } from '../lib/format'
 import { CLASS_COUNT, classBodyweight, classGroup, className, group, ipfClassIndex, toQuery, total, type Inputs } from '../lib/inputs'
 import { useSubmit } from '../lib/useSubmit'
@@ -86,29 +86,27 @@ function Body({ inputs, data, initialLoss }: { inputs: Inputs; data: Awaited<Ret
 
   return (
     <>
-      <Eyebrow>{inputs.sex === 'm' ? 'MEN' : 'WOMEN'} · {inputs.eq.toUpperCase()} · FULL POWER · TOTAL</Eyebrow>
       <h1 className="large">Where would you rank at each weight class?</h1>
       <p className="subtitle">
         Based on {int(data.down.lifters)} lifters who actually moved down a class — not an assumed ratio.
       </p>
 
+      <h2 className="sr-only">Your percentile in each class</h2>
       <div className="sweep">
         {rows.map((r) => {
           const h = r.pct === null ? 0 : 40 + (r.pct / 100) * 260
           const cls = `col${best?.c === r.c ? ' best' : ''}${r.n < THIN || !reachable(r.c) ? ' thin' : ''}${pinned === r.c ? ' pinned' : ''}`
           return (
-            <div key={r.c} className={cls} title={`n = ${int(r.n)}`} role="button" tabIndex={0}
-              onClick={() => setPinned(pinned === r.c ? null : r.c)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPinned(pinned === r.c ? null : r.c) }}>
-              <span className="marker">{best?.c === r.c ? 'BEST' : ''}</span>
-              <span className="label">PCT</span>
+            <button type="button" key={r.c} className={cls} title={`n = ${int(r.n)}`} aria-pressed={pinned === r.c}
+              onClick={() => setPinned(pinned === r.c ? null : r.c)}>
+              <span className="marker accent">{best?.c === r.c ? 'Best' : ''}</span>
               <span className="pct">{r.pct === null ? '—' : <CountUp value={r.pct} format={pctText} />}</span>
               {/* --h: bar height on desktop; --p: bar width when it lies flat on a phone. */}
               <span className="stem grow-y" style={{ '--h': `${h}px`, '--p': `${r.pct ?? 0}%`, ...stagger(r.c) } as React.CSSProperties} />
               <span className="cls">{r.label}</span>
-              <span className="dim" style={{ fontSize: 13 }}>{kg(r.projected)} kg</span>
-              <span className="marker dim" style={{ marginTop: 6 }}>{r.c === own ? '● CURRENT' : ''}</span>
-            </div>
+              <span className="meta">{kg(r.projected)} kg</span>
+              <span className="marker dim" style={{ marginTop: 6 }}>{r.c === own ? 'Your class' : ''}</span>
+            </button>
           )
         })}
       </div>
@@ -119,7 +117,7 @@ function Body({ inputs, data, initialLoss }: { inputs: Inputs; data: Awaited<Ret
         return (
           <div className="panel rise" style={{ maxWidth: 820, margin: '0 auto 20px' }}>
             <div className="kv" style={{ paddingTop: 0 }}>
-              <span className="label">{r.label} KG {r.c === own ? '· YOUR CLASS' : ''}</span>
+              <h2 className="label">{r.label} kg{r.c === own ? ' · your class' : ''}</h2>
               <span className="v">{r.pct === null ? '—' : pctText(r.pct)}</span>
             </div>
             <div className="dim" style={{ lineHeight: 1.6 }}>
@@ -140,17 +138,17 @@ function Body({ inputs, data, initialLoss }: { inputs: Inputs; data: Awaited<Ret
 
       <div className="losstrack">
         <div className="head">
-          <label className="label" htmlFor="loss">TOTAL CHANGE PER KG OF BODYWEIGHT</label>
-          <span>{loss.toFixed(1)} KG / KG</span>
+          <label className="label" htmlFor="loss">Total change per kg of bodyweight</label>
+          <span>{loss.toFixed(1)} kg per kg</span>
         </div>
         <div style={{ position: 'relative' }}>
           <input id="loss" className="slider" type="range" min={lo} max={hi} step={0.1} value={loss}
             onChange={(e) => onLoss(Number(e.target.value))} />
-          <span style={{ position: 'absolute', left: `${markerAt}%`, top: 2, width: 1, height: 18, background: 'var(--text-dim)', pointerEvents: 'none' }} />
+          <span style={{ position: 'absolute', left: `${markerAt}%`, top: 2, width: 1, height: 18, background: 'var(--text-2)', pointerEvents: 'none' }} />
         </div>
         <div className="ends label faint">
           <span>{lo.toFixed(1)}</span>
-          <span>MEASURED MEDIAN, MOVING DOWN · {measured.toFixed(1)}</span>
+          <span>Measured median, moving down · {measured.toFixed(1)}</span>
           <span>{hi.toFixed(1)}</span>
         </div>
         <div className="note" style={{ textAlign: 'center' }}>
@@ -163,15 +161,15 @@ function Body({ inputs, data, initialLoss }: { inputs: Inputs; data: Awaited<Ret
       <table className="pop">
         <thead>
           <tr>
-            {['CLASS', 'N', 'MEAN', 'SD', 'YOUR TOTAL THERE', 'Z-SCORE'].map((h) => <th key={h} className="label">{h}</th>)}
+            {['Class', 'Results', 'Mean', 'SD', 'Your total there', 'vs mean (sd)'].map((h) => <th key={h} scope="col">{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.c} className={`${r.c === own ? 'current' : ''}${pinned === r.c ? ' pinned' : ''}`}
-              style={r.n < THIN ? { color: 'var(--text-faint)' } : undefined}
+              style={r.n < THIN ? { color: 'var(--text-3)' } : undefined}
               onClick={() => setPinned(pinned === r.c ? null : r.c)}>
-              <td>{r.label} KG {r.c === own && <span className="label" style={{ marginLeft: 8 }}>CURRENT</span>}</td>
+              <td>{r.label} kg {r.c === own && <span className="meta" style={{ marginLeft: 8 }}>your class</span>}</td>
               <td>{int(r.n)}</td>
               <td>{r.n ? `${kg(r.mean)} kg` : '—'}</td>
               <td>{r.n ? `${kg(r.sd)} kg` : '—'}</td>
@@ -183,15 +181,15 @@ function Body({ inputs, data, initialLoss }: { inputs: Inputs; data: Awaited<Ret
       </table>
 
       <div className="summary">
-        <span className="label">CURRENT</span>
-        <span>{current.label} KG · {kg(current.projected)} KG · {current.pct === null ? '—' : pctText(current.pct).toUpperCase()} · N = {int(current.n)}</span>
+        <span className="label">Your class</span>
+        <span>{current.label} kg · {kg(current.projected)} kg · {current.pct === null ? '—' : `${pctText(current.pct)} percentile`} · {int(current.n)} results</span>
         {best && (
           <>
-            <span className="label">BEST</span>
-            <span>{best.label} KG · {kg(best.projected)} KG · {pctText(best.pct!).toUpperCase()} · N = {int(best.n)}</span>
+            <span className="label">Best</span>
+            <span>{best.label} kg · {kg(best.projected)} kg · {pctText(best.pct!)} percentile · {int(best.n)} results</span>
           </>
         )}
-        <span className="label">BASED ON</span>
+        <span className="label">Based on</span>
         <span>
           {int(data.down.transitions)} moves down one class by {int(data.down.lifters)} lifters · median bodyweight change{' '}
           {signed(data.down.medianBwDelta)} kg · mean total change {signed(data.down.meanTotalDelta)} kg

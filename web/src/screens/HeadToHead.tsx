@@ -3,11 +3,11 @@ import { ApiError } from '../api/client'
 import { Cdf } from '../api/cdf'
 import { distribution, leaderboard, lifterByName, percentile } from '../api/endpoints'
 import { DistributionChart } from '../components/DistributionChart'
-import { Figure } from '../components/Figure'
-import { Eyebrow, ErrorState, HeaderStrip, Loading } from '../components/Shell'
+import { BodyMap } from '../components/Figure'
+import { ErrorState, HeaderStrip, Loading } from '../components/Shell'
 import { abbreviate, int, kg, LIFT_LABEL, LIFTS, pctText, signed, type Lift } from '../lib/format'
 import { classGroup, className, group, ipfClassIndex, toQuery, total, type Inputs } from '../lib/inputs'
-import { LIFT_HEX, liftVars, type Lit } from '../lib/lifts'
+import { LIFT_COLOR, liftVars, type Lit } from '../lib/lifts'
 import { CountUp, i as stagger } from '../lib/motion'
 import { dots } from '../lib/dots'
 import { useSubmit } from '../lib/useSubmit'
@@ -81,14 +81,13 @@ function Picker({ inputs }: { inputs: Inputs }) {
   const cls = className(inputs.sex, ipfClassIndex(inputs.sex, inputs.bw))
   return (
     <>
-      <Eyebrow>HEAD-TO-HEAD COMPARISON</Eyebrow>
       <h1 className="large">Who do you want to measure against?</h1>
       <p className="subtitle">Pick a lifter. Both of you are measured against the same {cls} kg cohort.</p>
       {res.state === 'loading' && <Loading />}
       {res.state === 'error' && <ErrorState error={res.error} />}
       {res.state === 'ok' && (
         <>
-          <div className="label" style={{ marginTop: 32 }}>TOP OF THE {cls} KG CLASS</div>
+          <h2 className="section-title">Top of the {cls} kg class</h2>
           <div className="picker">
             {res.data.board.rows.map((r, k) => (
               <button key={r.name} className="panel pick-card rise" style={stagger(k)} onClick={() => choose(inputs, r.name)}>
@@ -99,7 +98,7 @@ function Picker({ inputs }: { inputs: Inputs }) {
           </div>
           {res.data.above.length > 0 && (
             <>
-              <div className="label" style={{ marginTop: 28 }}>JUST ABOVE YOUR TOTAL</div>
+              <h2 className="section-title">Just above your total</h2>
               <div className="picker">
                 {res.data.above.map((n, k) => (
                   <button key={n.name} className="panel pick-card rise" style={stagger(k + 6)} onClick={() => choose(inputs, n.name)}>
@@ -124,7 +123,7 @@ function Versus({ inputs, vs, scope }: { inputs: Inputs; vs: string; scope: Scop
     return (
       <>
         <ErrorState error={res.error} />
-        <div style={{ textAlign: 'center' }}><button className="sharebtn" style={{ width: 'auto', padding: '12px 24px' }} onClick={() => choose(inputs, null)}>PICK SOMEONE ELSE</button></div>
+        <div style={{ textAlign: 'center' }}><button className="btn" onClick={() => choose(inputs, null)}>Pick someone else</button></div>
       </>
     )
   }
@@ -163,16 +162,15 @@ function VersusBody({ inputs, data, scope, vs }: { inputs: Inputs; data: Awaited
   return (
     <>
       <div className="vsstrip rise">
-        <div className="line"><b>YOU</b><span>SQUAT <b>{kg(mine.squat)}</b></span><span>BENCH <b>{kg(mine.bench)}</b></span>
-          <span>DEADLIFT <b>{kg(mine.deadlift)}</b></span><span>TOTAL <b>{kg(mine.total)}</b></span><span className="dim">BW {kg(inputs.bw)}</span></div>
-        <div className="line" style={{ color: 'var(--accent)' }}><b>{them.name.toUpperCase()}</b><span>SQUAT <b>{kg(their.squat)}</b></span>
-          <span>BENCH <b>{kg(their.bench)}</b></span><span>DEADLIFT <b>{kg(their.deadlift)}</b></span><span>TOTAL <b>{kg(their.total)}</b></span>
+        <div className="line"><b>You</b><span>Squat <b>{kg(mine.squat)}</b></span><span>Bench <b>{kg(mine.bench)}</b></span>
+          <span>Deadlift <b>{kg(mine.deadlift)}</b></span><span>Total <b>{kg(mine.total)}</b></span><span>Bodyweight {kg(inputs.bw)}</span></div>
+        <div className="line them"><b>{them.name}</b><span>Squat <b>{kg(their.squat)}</b></span>
+          <span>Bench <b>{kg(their.bench)}</b></span><span>Deadlift <b>{kg(their.deadlift)}</b></span><span>Total <b>{kg(their.total)}</b></span>
           <span className="dim">BW {kg(them.bodyweight)} · {them.meet}, {them.date}</span></div>
       </div>
 
-      <div className="kv h2h-head" style={{ alignItems: 'flex-end' }}>
+      <div className="h2h-head">
         <div>
-          <Eyebrow>HEAD-TO-HEAD COMPARISON</Eyebrow>
           <h1 className="large">Where the gap actually is.</h1>
           <p className="subtitle">
             Both lifters measured against the same {int(data.dist.summary?.n ?? 0)} results in the {cls} kg class.
@@ -182,35 +180,35 @@ function VersusBody({ inputs, data, scope, vs }: { inputs: Inputs; data: Awaited
         </div>
         <div className="h2h-actions">
           <button className="choice" aria-pressed={scope === 'class'}
-            onClick={() => navigate(`/h2h?${toQuery(inputs, { vs })}`, true)}>BEST AT {cls} KG</button>
+            onClick={() => navigate(`/h2h?${toQuery(inputs, { vs })}`, true)}>Best at {cls} kg</button>
           <button className="choice" aria-pressed={scope === 'any'}
-            onClick={() => navigate(`/h2h?${toQuery(inputs, { vs, scope: 'any' })}`, true)}>BEST ANYWHERE</button>
-          <button className="choice" onClick={() => choose(inputs, null)}>CHANGE OPPONENT</button>
+            onClick={() => navigate(`/h2h?${toQuery(inputs, { vs, scope: 'any' })}`, true)}>Best anywhere</button>
+          <button className="choice" onClick={() => choose(inputs, null)}>Change opponent</button>
         </div>
       </div>
 
       <div className="h2h">
         <aside className="side side-you panel rise" style={stagger(1)}>
-          <div><div className="who">You</div><div className="label">BODYWEIGHT {kg(inputs.bw)} KG</div></div>
+          <div><div className="who">You</div><div className="meta">Bodyweight {kg(inputs.bw)} kg</div></div>
           <div className="panel" style={{ background: 'var(--bg)' }}>
-            <div className="label">COMPETITION TOTAL</div>
-            <div className="stat" style={{ fontSize: 40, fontWeight: 300 }}><CountUp value={mine.total} format={kg} /><span className="unit">KG</span></div>
-            <div className="label" style={{ marginTop: 10 }}>DOTS {myDots.toFixed(1)} · {pctText(youPct.total)} PERCENTILE</div>
+            <div className="label">Total</div>
+            <div className="stat"><CountUp value={mine.total} format={kg} /><span className="unit">kg</span></div>
+            <div className="meta" style={{ marginTop: 8 }}>DOTS {myDots.toFixed(1)} · {pctText(youPct.total)} percentile</div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}><Figure percentiles={youLit} size={230} /></div>
+          <BodyMap percentiles={youLit} height={220} />
         </aside>
 
         <section className="versus">
           {rows.map(([l, a, b], k) => {
-            const color = l === 'total' ? 'var(--accent)' : LIFT_HEX[l]
+            const color = l === 'total' ? 'var(--accent)' : LIFT_COLOR[l]
             const sum = a + b
             const diff = a - b
             return (
               <div key={l} className="panel cmp rise" style={{ ...(l !== 'total' ? liftVars(l) : {}), ...stagger(k + 2) }}>
                 <div className="vals">
-                  <span className="v">{kg(a)}<span className="unit">KG</span></span>
-                  <span className="label" style={{ color }}>{l === 'total' ? 'TOTAL' : LIFT_LABEL[l]}</span>
-                  <span className="v" style={{ color }}>{b > 0 ? kg(b) : '—'}<span className="unit">KG</span></span>
+                  <span className="v">{kg(a)}<span className="unit">kg</span></span>
+                  <span className="label" style={{ color }}>{l === 'total' ? 'Total' : LIFT_LABEL[l]}</span>
+                  <span className="v" style={{ color }}>{b > 0 ? kg(b) : '—'}<span className="unit">kg</span></span>
                 </div>
                 <div className="splitbar">
                   <i className="grow-x" style={{ width: `${sum > 0 ? (a / sum) * 100 : 50}%`, background: 'var(--text)', ...stagger(k) }} />
@@ -218,7 +216,7 @@ function VersusBody({ inputs, data, scope, vs }: { inputs: Inputs; data: Awaited
                 </div>
                 <div className="kv" style={{ padding: 0 }}>
                   <span className="label faint">{l === 'total' ? `${pctText(youPct.total)} vs ${pctText(themPct.total)}` : `${pctText(youPct[l])} vs ${Number.isNaN(themPct[l]) ? '—' : pctText(themPct[l])}`}</span>
-                  {b > 0 && <span className="label" style={{ color: diff < 0 ? 'var(--danger)' : 'var(--squat)' }}>{signed(diff)} KG ({signed((diff / b) * 100)}%)</span>}
+                  {b > 0 && <span className="label" style={{ color: diff < 0 ? 'var(--danger)' : 'var(--good)' }}>{signed(diff)} kg ({signed((diff / b) * 100)}%)</span>}
                 </div>
               </div>
             )
@@ -237,13 +235,13 @@ function VersusBody({ inputs, data, scope, vs }: { inputs: Inputs; data: Awaited
         </section>
 
         <aside className="side side-them panel rise" style={stagger(2)}>
-          <div><div className="who accent" title={them.name}>{them.name}</div><div className="label">BODYWEIGHT {kg(them.bodyweight)} KG · {them.federation}</div></div>
+          <div><div className="who" title={them.name}>{them.name}</div><div className="meta">Bodyweight {kg(them.bodyweight)} kg · {them.federation}</div></div>
           <div className="panel" style={{ background: 'var(--bg)' }}>
-            <div className="label">COMPETITION TOTAL</div>
-            <div className="stat accent" style={{ fontSize: 40, fontWeight: 300 }}><CountUp value={their.total} format={kg} /><span className="unit">KG</span></div>
-            <div className="label" style={{ marginTop: 10 }}>DOTS {them.dots > 0 ? them.dots.toFixed(1) : '—'} · {pctText(themPct.total)} PERCENTILE</div>
+            <div className="label">Total</div>
+            <div className="stat"><CountUp value={their.total} format={kg} /><span className="unit">kg</span></div>
+            <div className="meta" style={{ marginTop: 8 }}>DOTS {them.dots > 0 ? them.dots.toFixed(1) : '—'} · {pctText(themPct.total)} percentile</div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}><Figure percentiles={themLit} size={230} /></div>
+          <BodyMap percentiles={themLit} height={220} />
           <div className="note">
             {int(them.results)} placed results {scope === 'class' && !data.fellBack ? `in the ${cls} kg class` : 'in this category'}; this is their best total.
           </div>
@@ -252,11 +250,11 @@ function VersusBody({ inputs, data, scope, vs }: { inputs: Inputs; data: Awaited
 
       <div className="panel rise" style={{ marginTop: 20, ...stagger(8) }}>
         <div className="kv" style={{ paddingTop: 0 }}>
-          <span className="label">DISTRIBUTION · TOTAL ({cls} KG)</span>
-          <span className="label faint">N = {int(data.dist.summary?.n ?? 0)} · MEAN {kg(mean)} KG · SD {kg(sd)} KG</span>
+          <h2 className="label">Totals in the {cls} kg class</h2>
+          <span className="meta">{int(data.dist.summary?.n ?? 0)} results · mean {kg(mean)} kg · sd {kg(sd)} kg</span>
         </div>
         <DistributionChart cdf={cdf} marker={mine.total} mean={mean} sd={sd} height={200}
-          extra={[{ value: their.total, color: 'var(--squat)', label: `${short.toUpperCase()} ${kg(their.total)}` }]} />
+          extra={[{ value: their.total, color: 'var(--squat)', label: `${short} ${kg(their.total)}` }]} />
       </div>
     </>
   )

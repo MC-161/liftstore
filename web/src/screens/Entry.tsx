@@ -4,11 +4,11 @@ import type { DatasetStatsResponse } from '../gen/engine_pb'
 import { int } from '../lib/format'
 import { EQUIP_LABEL, loadLast, saveLast, toQuery, validate, type Equip, type Field, type Inputs, type Sex } from '../lib/inputs'
 import { navigate } from '../router'
+import { Mark, ThemeToggle } from '../components/Shell'
 import { liftVars } from '../lib/lifts'
-import { i as stagger } from '../lib/motion'
 import { kg } from '../lib/format'
 
-const FIELDS: [Field, string][] = [['s', 'SQUAT'], ['b', 'BENCH'], ['d', 'DEADLIFT'], ['bw', 'BODYWEIGHT']]
+const FIELDS: [Field, string][] = [['s', 'Squat'], ['b', 'Bench'], ['d', 'Deadlift'], ['bw', 'Bodyweight']]
 const FIELD_LIFT = { s: 'squat', b: 'bench', d: 'deadlift' } as const
 
 export function Entry({ initial }: { initial: Inputs | null }) {
@@ -44,66 +44,72 @@ export function Entry({ initial }: { initial: Inputs | null }) {
 
   return (
     <form className="entry" onSubmit={submit} noValidate>
-      <span className="glow-blob" style={{ background: 'var(--squat)', left: '-20vw', top: '-25vw' }} aria-hidden />
-      <span className="glow-blob" style={{ background: 'var(--bench)', right: '-25vw', top: '5vw', animationDelay: '-7s' }} aria-hidden />
-      <span className="glow-blob" style={{ background: 'var(--deadlift)', left: '15vw', bottom: '-35vw', animationDelay: '-14s' }} aria-hidden />
+      <div className="entry-top">
+        <span className="brand"><Mark />Weak Link</span>
+        <ThemeToggle />
+      </div>
       <div className="inner">
-        <h1 className="rise">Which lift is holding you back?</h1>
-        <p className="lede rise" style={stagger(1)}>
-          {stats ? `${(stats.results / 1e6).toFixed(1)} million competition results.` : 'Competition results.'} No account.
+        <h1>Which lift is holding you back?</h1>
+        <p className="lede">
+          Your squat, bench and deadlift against{' '}
+          {stats ? `${(stats.results / 1e6).toFixed(1)} million` : 'millions of'} competition results, compared with
+          lifters your size. No account.
         </p>
 
-        <div className="fields">
-          {FIELDS.map(([f, label], k) => (
-            <div key={f} className={`field rise${errs[f] ? ' invalid' : ''}`}
-              style={{ ...(f === 'bw' ? { '--lc': 'var(--text)' } as React.CSSProperties : liftVars(FIELD_LIFT[f])), ...stagger(k + 2) }}>
-              <label className="label" htmlFor={f}>{label}</label>
-              <div className="box">
-                <input id={f} inputMode="decimal" autoComplete="off" value={text[f]}
-                  aria-invalid={!!errs[f]} aria-describedby={`${f}-err`}
-                  onChange={(e) => {
-                    setText({ ...text, [f]: e.target.value })
-                    if (errs[f]) setErrs({ ...errs, [f]: undefined }) // cleared on edit
-                  }} />
-                <span className="unit">KG</span>
+        <div className="entry-card">
+          <div className="fields">
+            {FIELDS.map(([f, label]) => (
+              <div key={f} className={`field${errs[f] ? ' invalid' : ''}`}
+                style={f === 'bw' ? undefined : liftVars(FIELD_LIFT[f])}>
+                <label htmlFor={f}>{f !== 'bw' && <span className="sw" aria-hidden="true" />}{label}</label>
+                <div className="box">
+                  <input id={f} inputMode="decimal" autoComplete="off" value={text[f]}
+                    aria-invalid={!!errs[f]} aria-describedby={`${f}-err`}
+                    onChange={(e) => {
+                      setText({ ...text, [f]: e.target.value })
+                      if (errs[f]) setErrs({ ...errs, [f]: undefined }) // cleared on edit
+                    }} />
+                  <span className="unit">kg</span>
+                </div>
+                <div className="err" id={`${f}-err`}>{errs[f] ?? ''}</div>
               </div>
-              <div className="err" id={`${f}-err`}>{errs[f] ?? ''}</div>
+            ))}
+          </div>
+
+          <div className="choices">
+            <div className="choice-group" role="group" aria-label="Sex">
+              <span className="label">Sex</span>
+              {(['m', 'f'] as Sex[]).map((v) => (
+                <button type="button" key={v} className="choice" aria-pressed={sex === v} onClick={() => setSex(v)}>
+                  {v === 'm' ? 'Men' : 'Women'}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
-
-        <div className="livetotal label">
-          {liveTotal !== null && <>TOTAL<span className="stat" style={{ color: 'var(--accent)' }}>{kg(liveTotal)}</span>KG</>}
-        </div>
-
-        <div className="choices rise" style={stagger(6)}>
-          <div className="choice-group" role="group" aria-label="Sex">
-            <span className="label">SEX</span>
-            {(['m', 'f'] as Sex[]).map((v) => (
-              <button type="button" key={v} className="choice" aria-pressed={sex === v} onClick={() => setSex(v)}>
-                {v === 'm' ? 'Male' : 'Female'}
-              </button>
-            ))}
+            <div className="choice-group" role="group" aria-label="Equipment">
+              <span className="label">Equipment</span>
+              {(Object.keys(EQUIP_LABEL) as Equip[]).map((v) => (
+                <button type="button" key={v} className="choice" aria-pressed={eq === v} onClick={() => setEq(v)}>
+                  {EQUIP_LABEL[v]}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="choice-group" role="group" aria-label="Equipment">
-            <span className="label">EQUIPMENT</span>
-            {(Object.keys(EQUIP_LABEL) as Equip[]).map((v) => (
-              <button type="button" key={v} className="choice" aria-pressed={eq === v} onClick={() => setEq(v)}>
-                {EQUIP_LABEL[v]}
-              </button>
-            ))}
+
+          <div className="entry-foot">
+            <div className="livetotal" aria-live="polite">
+              {liveTotal !== null ? <>Total<b>{kg(liveTotal)} kg</b></> : 'Enter all three lifts'}
+            </div>
+            <button className="btn primary analyse" type="submit">See my verdict</button>
           </div>
         </div>
 
-        <button className="analyse rise" style={stagger(7)} type="submit">ANALYSE</button>
-
-        <div className="statsrow label faint">
+        <div className="statsrow">
           {stats ? (
             <>
-              <span>{int(stats.results)} RESULTS</span><span>·</span>
-              <span>{int(stats.federations)} FEDERATIONS</span><span>·</span>
+              <span><b>{int(stats.results)}</b>results</span>
+              <span><b>{int(stats.federations)}</b>federations</span>
               {/* Static, from docs/benchmarks.md -- not a live readout (spec 2.3). */}
-              <span title="Hero query, benchmarked single-threaded over the full dataset">8.8 MS HERO QUERY, BENCHMARKED</span>
+              <span title="Hero query, benchmarked single-threaded over the full dataset"><b>8.8 ms</b>per comparison, benchmarked</span>
             </>
           ) : <span>&nbsp;</span>}
         </div>
