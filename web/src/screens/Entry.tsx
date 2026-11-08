@@ -6,6 +6,7 @@ import { EQUIP_LABEL, loadLast, saveLast, toQuery, validate, type Equip, type Fi
 import { navigate } from '../router'
 import { Mark, ThemeToggle } from '../components/Shell'
 import { liftVars } from '../lib/lifts'
+import { LiftField } from '../components/LiftField'
 import { kg } from '../lib/format'
 
 const FIELDS: [Field, string][] = [['s', 'Squat'], ['b', 'Bench'], ['d', 'Deadlift'], ['bw', 'Bodyweight']]
@@ -44,6 +45,7 @@ export function Entry({ initial }: { initial: Inputs | null }) {
 
   return (
     <form className="entry" onSubmit={submit} noValidate>
+      <LiftField />
       <div className="entry-top">
         <span className="brand"><Mark />Weak Link</span>
         <ThemeToggle />

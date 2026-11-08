@@ -1,6 +1,6 @@
 /* =====================================================================
-   Tokens. Two themes, one set of names. Dark is the default; light comes
-   from the system preference or the toggle (data-theme on <html>).
+   Tokens. Two themes, one set of names. Light is the default (set on <html>
+   at boot); dark comes from the toggle, which is remembered.
    Every text tone is >= 4.5:1 on the surface it sits on.
    ===================================================================== */
 :root,
@@ -244,7 +244,14 @@ button.board-row { width: 100%; text-align: left; }
 }
 
 /* ---- Entry ---- */
-.entry { min-height: 100vh; display: flex; flex-direction: column; }
+.entry { min-height: 100vh; display: flex; flex-direction: column; position: relative; isolation: isolate; }
+/* Lift-curve landscape behind the form; dimmed under the headline and the
+   stats line so type stays clean, full strength at the edges. */
+.lift-field { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+  --quiet-head: radial-gradient(42% 26% at 50% 24%, rgba(0, 0, 0, 0.2) 40%, #000);
+  --quiet-foot: radial-gradient(34% 14% at 50% 82%, rgba(0, 0, 0, 0.15) 35%, #000);
+  -webkit-mask-image: var(--quiet-head), var(--quiet-foot); -webkit-mask-composite: source-in;
+          mask-image: var(--quiet-head), var(--quiet-foot); mask-composite: intersect; }
 .entry-top { display: flex; align-items: center; justify-content: space-between; padding: 18px var(--pad); }
 .entry .inner { width: 100%; max-width: 1080px; margin: auto; padding: 32px var(--pad) 72px; }
 .entry h1 { font-size: 56px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; text-align: center; margin: 0; text-wrap: balance; }
@@ -478,6 +485,7 @@ table.pop tr.current td { background: var(--accent-soft); }
 
   .entry h1 { font-size: 36px; }
   .entry-card { padding: 20px; }
+  .lift-field { --quiet-head: radial-gradient(90% 30% at 50% 22%, rgba(0, 0, 0, 0.1) 60%, #000); }
   .fields { gap: 14px; }
   .large { font-size: 28px; }
 

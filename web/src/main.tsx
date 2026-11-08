@@ -5,7 +5,8 @@ import App from './App.tsx'
 import { applyTheme, storedTheme } from './lib/theme'
 
 // Before first paint, so a pinned theme never flashes the other one.
-applyTheme(storedTheme())
+// Light unless the visitor has chosen dark.
+applyTheme(storedTheme() ?? 'light')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
