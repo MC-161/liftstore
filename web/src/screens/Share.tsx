@@ -58,7 +58,7 @@ export function Share({ inputs }: { inputs: Inputs }) {
 
   return (
     <main className="main">
-      {res.state === 'loading' && <Loading />}
+      {res.state === 'loading' && <Loading shape="share" />}
       {res.state === 'error' && <ErrorState error={res.error} />}
       {res.state === 'ok' && (
         <div className="sharepage">

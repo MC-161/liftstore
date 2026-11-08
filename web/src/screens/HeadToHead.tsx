@@ -83,7 +83,7 @@ function Picker({ inputs }: { inputs: Inputs }) {
     <>
       <h1 className="large">Who do you want to measure against?</h1>
       <p className="subtitle">Pick a lifter. Both of you are measured against the same {cls} kg cohort.</p>
-      {res.state === 'loading' && <Loading />}
+      {res.state === 'loading' && <Loading shape="versus" />}
       {res.state === 'error' && <ErrorState error={res.error} />}
       {res.state === 'ok' && (
         <>
@@ -118,7 +118,7 @@ function Picker({ inputs }: { inputs: Inputs }) {
 
 function Versus({ inputs, vs, scope }: { inputs: Inputs; vs: string; scope: Scope }) {
   const res = useSubmit(`vs|${toQuery(inputs)}|${vs}|${scope}`, () => loadVs(inputs, vs, scope))
-  if (res.state === 'loading') return <Loading />
+  if (res.state === 'loading') return <Loading shape="versus" />
   if (res.state === 'error') {
     return (
       <>

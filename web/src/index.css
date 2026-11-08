@@ -221,7 +221,28 @@ button.board-row { width: 100%; text-align: left; }
 .state { padding: 120px 0; text-align: center; color: var(--text-2); }
 .state.error { color: var(--danger); }
 .state .code { display: block; margin-top: 10px; font-size: 13px; color: var(--text-3); }
-.skeleton { color: var(--text-3); }
+/* Loading placeholders: the screen's own shapes, one soft sheen passing over. */
+/* Tinted from the text colour so they read on any surface in either theme. */
+.skel { display: block; flex-shrink: 0; max-width: 100%; border-radius: 6px; background: color-mix(in srgb, var(--text) 7%, transparent); position: relative; overflow: hidden; }
+.skel::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 6%, transparent), transparent);
+  animation: skel-sheen 1.6s var(--ease) infinite; }
+@keyframes skel-sheen { to { transform: translateX(100%); } }
+.skel-stack { display: flex; flex-direction: column; }
+.skel-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.skel-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.skel-row { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.skel-row:last-child { border-bottom: 0; }
+.skel-note { margin: 0 0 20px; padding: 12px 16px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); color: var(--text-2); font-size: 14px; animation: fade 300ms var(--ease); }
+.sweep.skel-sweep .col { cursor: default; }
+.sweep.skel-sweep .col:hover { background: none; }
+.skel-stem { width: 12px; height: var(--h); margin: 14px 0; border-radius: 6px 6px 2px 2px; }
+@media (max-width: 760px) {
+  .skel-rows { grid-template-columns: minmax(0, 1fr); }
+  /* Phone: the class bars lie flat, so the placeholders do too. */
+  .sweep.skel-sweep .col { display: flex; flex-direction: row; align-items: center; gap: 12px; }
+  .skel-stem { width: var(--p); height: 10px; margin: 0; border-radius: 0 5px 5px 0; flex: 1 1 auto; max-width: var(--p); }
+}
 
 /* ---- motion: one quick arrival; after that, only state changes move ---- */
 @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -236,7 +257,7 @@ button.board-row { width: 100%; text-align: left; }
 .fade-in { animation: fade 400ms ease both; }
 @media (prefers-reduced-motion: reduce) {
   .rise, .grow-y, .grow-x, .draw, .fade-in { animation: none !important; }
-  .tab-ink, .bottom-ink { transition: none !important; }
+  .tab-ink, .bottom-ink, .skel { transition: none !important; animation: none !important; }
 }
 
 /* ---- tooltip ---- */

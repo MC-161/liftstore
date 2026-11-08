@@ -167,7 +167,7 @@ export function Leaderboards({ inputs, params }: { inputs: Inputs; params: URLSe
           </label>
         </div>
 
-        {res.state === 'loading' && <Loading />}
+        {res.state === 'loading' && <Loading shape="board" />}
         {res.state === 'error' && <ErrorState error={res.error} />}
         {res.state === 'ok' && <Board inputs={inputs} c={c} rows={res.data.res.rows} you={res.data.res.you}
           lifters={res.data.res.lifters} hidden={res.data.res.hidden} ms={res.data.ms} />}

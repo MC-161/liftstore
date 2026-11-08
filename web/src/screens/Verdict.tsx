@@ -65,7 +65,7 @@ export function Verdict({ inputs }: { inputs: Inputs }) {
     <>
       <HeaderStrip inputs={inputs} />
       <main className="main">
-        {res.state === 'loading' && <Loading />}
+        {res.state === 'loading' && <Loading shape="verdict" />}
         {res.state === 'error' && <ErrorState error={res.error} />}
         {res.state === 'ok' && <VerdictBody key={key} inputs={inputs} data={res.data} />}
       </main>

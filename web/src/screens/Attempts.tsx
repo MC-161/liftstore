@@ -26,7 +26,7 @@ export function Attempts({ inputs }: { inputs: Inputs }) {
     <>
       <HeaderStrip inputs={inputs} />
       <main className="main">
-        {res.state === 'loading' && <Loading />}
+        {res.state === 'loading' && <Loading shape="attempts" />}
         {res.state === 'error' && <ErrorState error={res.error} />}
         {res.state === 'ok' && <Body inputs={inputs} data={res.data} />}
       </main>

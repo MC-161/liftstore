@@ -4,6 +4,7 @@ import { kg } from '../lib/format'
 import { EQUIP_LABEL, className, ipfClassIndex, toQuery, total, type Inputs } from '../lib/inputs'
 import { onLinkClick } from '../router'
 import { effectiveTheme, setTheme, type Theme } from '../lib/theme'
+import { Skeleton, type SkeletonShape } from './Skeleton'
 
 type Screen = 'verdict' | 'weight-class' | 'attempts' | 'head-to-head' | 'leaderboards' | 'entry'
 
@@ -182,8 +183,8 @@ export function ErrorState({ error }: { error: unknown }) {
   return <div className="state error">{String(error)}</div>
 }
 
-export function Loading() {
-  return <div className="state skeleton" role="status">Querying 4,032,180 results…</div>
+export function Loading({ shape }: { shape: SkeletonShape }) {
+  return <Skeleton shape={shape} />
 }
 
 export function MissingInputs() {

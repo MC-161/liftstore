@@ -38,7 +38,7 @@ export function WeightClass({ inputs, params }: { inputs: Inputs; params: URLSea
     <>
       <HeaderStrip inputs={inputs} />
       <main className="main">
-        {res.state === 'loading' && <Loading />}
+        {res.state === 'loading' && <Loading shape="classes" />}
         {res.state === 'error' && <ErrorState error={res.error} />}
         {res.state === 'ok' && <Body key={key} inputs={inputs} data={res.data} initialLoss={params.get('loss')} />}
       </main>
