@@ -1,0 +1,106 @@
+/* The film stage. Everything moves from the clock, so the app's own CSS
+   motion is switched off here. */
+*, *::before, *::after { animation: none !important; transition: none !important; }
+html, body { margin: 0; overflow: hidden; background: var(--bg); }
+#root { width: 1920px; height: 1080px; }
+
+.film { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+.film .halo { position: absolute; inset: 0; background: radial-gradient(1100px 700px at 50% 46%, var(--halo) 0%, transparent 70%); }
+:root, :root[data-theme='dark'] { --halo: #12151b; --f-shadow: 0 40px 120px rgba(0,0,0,.45); --f-total: #e9ebef; }
+:root[data-theme='light'] { --halo: #ffffff; --f-shadow: 0 24px 64px rgba(15,23,42,.08), 0 2px 8px rgba(15,23,42,.05); --f-total: #2a2f38; }
+.f-body .bodymap { margin: 0; gap: 24px; }
+.f-body figcaption { display: none; }
+.scene { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; will-change: transform, opacity, filter; }
+
+.f-kicker { font-size: 26px; font-weight: 500; color: var(--text-2); letter-spacing: -0.01em; }
+.f-h1 { font-size: 120px; font-weight: 600; letter-spacing: -0.05em; line-height: 1.02; margin: 0; text-align: center; }
+.f-h2 { font-size: 76px; font-weight: 600; letter-spacing: -0.045em; line-height: 1.05; margin: 0; text-align: center; }
+.f-sub { font-size: 32px; color: var(--text-2); letter-spacing: -0.015em; line-height: 1.4; text-align: center; margin: 0; }
+.f-sub b { color: var(--text); font-weight: 600; }
+.f-word { display: inline-block; white-space: pre; }
+.f-giant { font-size: 260px; font-weight: 600; letter-spacing: -0.06em; line-height: 0.9; }
+
+/* numbers row */
+.f-nums { display: flex; gap: 80px; align-items: flex-end; }
+.f-num { text-align: center; width: 360px; }
+.f-num .v { font-size: 200px; font-weight: 600; letter-spacing: -0.06em; line-height: 0.95; color: var(--lc); }
+.f-num .k { font-size: 30px; font-weight: 500; color: var(--text-2); margin-top: 14px; }
+
+/* entry card on a tilted plane */
+.f-plane { perspective: 1800px; }
+.f-entry { width: 900px; zoom: 1.5; transform-origin: 50% 0%; }
+.f-entry .entry-card { padding: 40px; border-radius: 20px; box-shadow: var(--f-shadow); }
+.f-entry .field .box input { font-size: 24px; }
+.f-press { box-shadow: 0 0 0 6px rgba(245,165,36,.25); }
+
+/* verdict strip */
+.f-strip text { font-family: Inter, system-ui, sans-serif; }
+.f-target { margin-top: 28px; font-size: 28px; color: var(--text-2); padding: 18px 28px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.f-target b { color: var(--text); }
+
+/* body map callouts */
+.f-call { position: absolute; display: flex; flex-direction: column; gap: 2px; }
+.f-call .n { font-size: 26px; font-weight: 500; color: var(--text-2); }
+.f-call .p { font-size: 76px; font-weight: 600; letter-spacing: -0.045em; line-height: 1; color: var(--lc); }
+.f-call .p sup { font-size: 30px; margin-left: 2px; }
+.f-call .line { position: absolute; top: 50%; height: 2px; background: var(--lc); opacity: .6; }
+
+/* panels */
+.f-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--f-shadow); }
+.f-whatif { width: 1240px; padding: 44px 52px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px; align-items: center; }
+.f-track { position: relative; height: 40px; margin-top: 64px; }
+.f-track .rail { position: absolute; left: 0; right: 0; top: 17px; height: 6px; border-radius: 3px; background: var(--inset); }
+.f-track .fill { position: absolute; left: 50%; top: 17px; height: 6px; border-radius: 3px; background: var(--lc); }
+.f-track .mid { position: absolute; left: 50%; top: 9px; width: 2px; height: 22px; margin-left: -1px; background: var(--line-strong); }
+.f-track .thumb { position: absolute; top: 4px; width: 32px; height: 32px; margin-left: -16px; border-radius: 50%; background: var(--lc); border: 4px solid var(--surface); box-shadow: 0 2px 10px rgba(15,23,42,.25); }
+.f-track .tip { position: absolute; top: -40px; transform: translateX(-50%); font-size: 24px; font-weight: 600; color: var(--lc); white-space: nowrap; }
+.f-ends { display: flex; justify-content: space-between; font-size: 20px; color: var(--text-3); margin-top: 10px; }
+.f-whatif .big { font-size: 112px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; }
+.f-whatif .unit { font-size: 32px; }
+.f-whatif .pct { font-size: 112px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; }
+.f-whatif .pct sup { font-size: 40px; }
+.f-whatif .slider { height: 40px; }
+.f-whatif .slider::-webkit-slider-thumb { width: 30px; height: 30px; margin-top: -13px; }
+.f-whatif .slider::-webkit-slider-runnable-track { height: 6px; }
+
+/* weight classes */
+.f-classes { display: flex; gap: 38px; align-items: flex-end; height: 560px; }
+.f-col { width: 118px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.f-col .pct { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 14px; }
+.f-col .bar { width: 22px; border-radius: 11px 11px 4px 4px; background: var(--line-strong); }
+.f-col .cls { font-size: 34px; font-weight: 600; margin-top: 18px; }
+.f-col .tag { font-size: 20px; font-weight: 600; height: 26px; margin-bottom: 6px; color: var(--accent); }
+.f-col .own { font-size: 20px; color: var(--text-3); height: 26px; margin-top: 6px; }
+.f-col.best .bar { background: var(--accent-fill); }
+.f-col.best .pct, .f-col.best .cls { color: var(--accent); }
+
+/* attempts */
+.f-cards { display: grid; grid-template-columns: repeat(5, 210px); gap: 22px; }
+.f-card { height: 440px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 26px 12px 24px; }
+.f-card .j { font-size: 24px; color: var(--text-2); font-weight: 500; }
+.f-card .r { font-size: 52px; font-weight: 600; letter-spacing: -0.03em; margin-top: auto; }
+.f-card .stem { width: 16px; border-radius: 8px 8px 3px 3px; margin: 16px 0 20px; background: color-mix(in srgb, var(--lc) 50%, var(--surface-2)); }
+.f-card .w { font-size: 34px; font-weight: 600; }
+.f-card .w span { font-size: 20px; color: var(--text-3); margin-left: 3px; }
+.f-card.pick { border-color: var(--accent); }
+.f-card.pick .stem { background: var(--accent-fill); }
+.f-card.pick .r, .f-card.pick .w { color: var(--accent); }
+
+/* head to head */
+.f-h2h { width: 1320px; display: grid; gap: 30px; }
+.f-h2h .names { display: flex; justify-content: space-between; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; }
+.f-h2h .names .them { color: var(--text-2); }
+.f-row { display: grid; grid-template-columns: 1fr 200px 1fr; align-items: center; gap: 24px; }
+.f-row .lab { text-align: center; font-size: 26px; font-weight: 600; color: var(--lc); }
+.f-row .side { position: relative; height: 56px; }
+.f-row .bar { position: absolute; top: 0; height: 56px; border-radius: 10px; }
+.f-row .you .bar { right: 0; background: var(--lc); }
+.f-row .them .bar { left: 0; background: color-mix(in srgb, var(--lc) 30%, var(--surface-2)); }
+.f-row .val { position: absolute; top: 50%; transform: translateY(-50%); font-size: 26px; font-weight: 600; white-space: nowrap; }
+.f-row .them .val { color: var(--text-2); }
+
+/* brand */
+.f-brand { display: flex; flex-direction: column; align-items: center; }
+.f-brand .word { font-size: 132px; font-weight: 600; letter-spacing: -0.055em; line-height: 1; margin-top: 40px; }
+.f-url { font-size: 28px; color: var(--accent); font-weight: 500; }

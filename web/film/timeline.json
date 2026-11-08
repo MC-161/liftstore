@@ -1,0 +1,119 @@
+{
+ "duration": 62441,
+ "scenes": {
+  "logo": {
+   "name": "logo",
+   "dur": 2100,
+   "lead": null,
+   "shift": 0,
+   "start": 0
+  },
+  "nums": {
+   "name": "nums",
+   "dur": 6566,
+   "lead": 250,
+   "shift": 0,
+   "slams": [
+    693,
+    1659,
+    3034
+   ],
+   "ask": 4795,
+   "start": 2100
+  },
+  "entry": {
+   "name": "entry",
+   "dur": 7784,
+   "lead": 300,
+   "shift": 0,
+   "men": 1561,
+   "eq": [
+    3755,
+    4561,
+    5186,
+    6084
+   ],
+   "back": 6834,
+   "press": 7234,
+   "start": 8666
+  },
+  "verdict": {
+   "name": "verdict",
+   "dur": 6866,
+   "lead": 250,
+   "shift": 1566,
+   "start": 16450
+  },
+  "body": {
+   "name": "body",
+   "dur": 4845,
+   "lead": 250,
+   "shift": 845,
+   "start": 23316
+  },
+  "stats": {
+   "name": "stats",
+   "dur": 4748,
+   "lead": 250,
+   "shift": 0,
+   "second": 2022,
+   "start": 28161
+  },
+  "whatif": {
+   "name": "whatif",
+   "dur": 5817,
+   "lead": 250,
+   "shift": 1417,
+   "start": 32909
+  },
+  "classes": {
+   "name": "classes",
+   "dur": 4655,
+   "lead": 250,
+   "shift": 855,
+   "start": 38726
+  },
+  "attempts": {
+   "name": "attempts",
+   "dur": 4448,
+   "lead": 250,
+   "shift": 648,
+   "start": 43381
+  },
+  "h2h": {
+   "name": "h2h",
+   "dur": 4248,
+   "lead": 250,
+   "shift": 236,
+   "start": 47829
+  },
+  "speed": {
+   "name": "speed",
+   "dur": 5464,
+   "lead": 250,
+   "shift": 1757,
+   "start": 52077
+  },
+  "end": {
+   "name": "end",
+   "dur": 4900,
+   "lead": 250,
+   "shift": 0,
+   "start": 57541
+  }
+ },
+ "order": [
+  "logo",
+  "nums",
+  "entry",
+  "verdict",
+  "body",
+  "stats",
+  "whatif",
+  "classes",
+  "attempts",
+  "h2h",
+  "speed",
+  "end"
+ ]
+}
