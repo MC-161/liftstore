@@ -140,8 +140,8 @@ function VerdictBody({ inputs, data }: { inputs: Inputs; data: Awaited<ReturnTyp
               <span className="tag">{tier(live[l])}</span>
             </div>
             <div className="mid">
-              <span><span className="kgv">{kg(value(inputs, l) + delta[l])}</span><span className="unit">kg</span></span>
-              <span className="pv"><CountUp value={live[l]} format={pctNumber} /><sup>{pctSuffix(live[l])}</sup></span>
+              <span><span className="kgv"><CountUp value={value(inputs, l) + delta[l]} format={kg} ms={0} /></span><span className="unit">kg</span></span>
+              <span className="pv"><CountUp value={live[l]}>{(v) => <>{pctNumber(v)}<sup>{pctSuffix(v)}</sup></>}</CountUp></span>
             </div>
             <Ruler pct={live[l]} color={LIFT_COLOR[l]} />
           </div>
@@ -167,8 +167,8 @@ function VerdictBody({ inputs, data }: { inputs: Inputs; data: Awaited<ReturnTyp
         </div>
 
         <div className="panel">
-          <div className="kv"><span className="label">Projected total</span><span className="v">{kg(projected)} kg</span></div>
-          <div className="kv"><span className="label">Projected percentile</span><span className="v">{pctText(heroPct)}</span></div>
+          <div className="kv"><span className="label">Projected total</span><span className="v"><CountUp value={projected} format={kg} ms={0} /> kg</span></div>
+          <div className="kv"><span className="label">Projected percentile</span><span className="v"><CountUp value={heroPct} format={pctText} /></span></div>
           <div className="kv">
             <span className="label">For the {target.p}th you need</span>
             <span className="v">{target.r.n > 0 ? `${kg(target.r.value)} kg` : '—'}</span>
@@ -208,15 +208,15 @@ function VerdictBody({ inputs, data }: { inputs: Inputs; data: Awaited<ReturnTyp
         <div className="herorow">
           <div className="cell">
             <span className="label">Overall</span>
-            <span className="v"><CountUp value={heroPct} format={pctNumber} /><sup>{pctSuffix(heroPct)}</sup></span>
+            <span className="v"><CountUp value={heroPct}>{(v) => <>{pctNumber(v)}<sup>{pctSuffix(v)}</sup></>}</CountUp></span>
           </div>
           <div className="cell">
             <span className="label">Total</span>
-            <span className="v">{kg(projected)}<span className="unit">kg</span></span>
+            <span className="v"><CountUp value={projected} format={kg} ms={0} /><span className="unit">kg</span></span>
           </div>
           <div className="cell">
             <span className="label" title="Standard deviations from the class mean">vs class mean</span>
-            <span className="v">{signed(z, 2)}<span className="unit">sd</span></span>
+            <span className="v"><CountUp value={z} format={(v) => signed(v, 2)} ms={0} /><span className="unit">sd</span></span>
           </div>
         </div>
         {classMismatch && (
